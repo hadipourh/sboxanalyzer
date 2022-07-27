@@ -95,7 +95,7 @@ Interpretation of the output:
 
 - `Input:	a0||a1||a2; a0: msb`: $a_{0}||a_{1}||a_{2}$ encode the input difference vector $a$ where $a_{0}$ is the most significant bit of $a$.
 - `Output:	b0||b1||b2; b0: msb`: $b_{0}||b_{1}||b_{2}$ encode the output difference vector $b$ where $b_{0}$ is the most significant bit of $b$.
-- `Weight: 2.0000 p0`: $2\cdot p0$ is the weight of differential transition $a \rightarrow b$, i.e.,  $\Pr \{a \rightarrow b\} = 2^{-2\cdot p_0}$, where $p_{0}$ is a binary decision variable encoding the probability of valid transitions.
+- `Weight: 2.0000 p0`: $2\cdot p0$ is the weight of differential transition $a \rightarrow b$, i.e.,  $\Pr (a \rightarrow b) = 2^{-2\cdot p_0}$, where $p_{0}$ is a binary decision variable encoding the probability of valid transitions.
 
 ## More Examples
 
