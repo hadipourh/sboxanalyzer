@@ -123,7 +123,7 @@ sage: print(cnf)
 Interpretation of the outputs:
 
 - `Input:	a0||a1||a2||a3; a0: msb`: The binary vector $a = a_{0}||a_{1}||a_{2}||a_{3}$ encodes the input difference where $a_{0}$ is the most significant bit of $a$.
-- `Output:	b0||b1||b2||b3; b0: msb`: The binary evctor $b = b_{0}||b_{1}||b_{2}||b_{3}$ encodes the output difference where $b_{0}$ is the most significant bit of $b$.
+- `Output:	b0||b1||b2||b3; b0: msb`: The binary vector $b = b_{0}||b_{1}||b_{2}||b_{3}$ encodes the output difference where $b_{0}$ is the most significant bit of $b$.
 - `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, i.e.,  $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$, where $p_{0}, p_{1}$, and $p_{3}$ are binary decision variables to encode the probability of differential transitions.
 
 ## Examples
