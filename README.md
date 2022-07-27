@@ -144,7 +144,7 @@ Output:	b0||b1||b2||b3; b0: msb
 Weight: 3.0000 p0 + 2.0000 p1
 ```
 
-To make a trade off between the time of simplification and the optimality of the solution S-Boz Analyzer supports 7 different modes, i.e., `[mode=1,...,mode=7]`. The default mode is `6` which is the best choice in terms of both time and optimality. For example using the following command we can minimize the number of constraints a little further:
+To make a trade off between the time of simplification and the optimality of the solution S-Box Analyzer supports 7 different modes, i.e., `[mode=1,...,mode=7]`. The default mode is `6` which is the best choice in terms of both simplification time and optimality. For example, using the following command we can minimize the number of constraints a little more:
 
 ```python
 sage: cnf, milp = sa.minimized_diff_constraints(mode=5)
