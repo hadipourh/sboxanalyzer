@@ -1,6 +1,6 @@
 # S-box Analyzer
 
-S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints to encode the Differential Distribution Table (DDT), Linear Approximation Table (LAT), or [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
+S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints to encode the Differential Distribution Table (DDT), Linear Approximation Table (LAT), and [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
 
 ---
 ![logo](./images/sboxanalyzer.svg)
