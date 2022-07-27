@@ -189,7 +189,7 @@ Weight: 3.0000 p0 + 2.0000 p1
 
 ### Encoding the DDT of SKINNY-128
 
-To encode the DDT of larges S-boxes (8-bit S-boxes), we usually divide the DDT into several sub-DDTs and encode the sub-DDTs seperately. Lastly, we put the constraints for all sub-DDTs together to encode the whole DDT. The following code shows how to encode the DDT of SKINNY-128.
+To encode the DDT of large S-boxes (8-bit S-boxes), we usually divide the DDT into several sub-DDTs and encode the sub-DDTs seperately. Lastly, we put the constraints for all sub-DDTs together to encode the whole DDT. The following code shows how to encode the DDT of SKINNY-128.
 
 ***Encode 2-DDT***
 
