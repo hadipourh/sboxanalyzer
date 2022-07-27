@@ -9,12 +9,13 @@ S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Usage](#usage)
-  - [More Examples](#more-examples)
+  - [Examples](#examples)
     - [Encoding the DDT of SKINNY-64](#encoding-the-ddt-of-skinny-64)
     - [Encoding the DDT of Ascon](#encoding-the-ddt-of-ascon)
     - [Encoding the DDT of PRESENT](#encoding-the-ddt-of-present)
     - [Encoding the DDT of SKINNY-128](#encoding-the-ddt-of-skinny-128)
     - [Encoding the DDT of AES](#encoding-the-ddt-of-aes)
+    - [Encoding the *-DDT and *-LAT](#encoding-the--ddt-and--lat)
     - [Encoding the DDT for CryptoSMT](#encoding-the-ddt-for-cryptosmt)
   - [Paper](#paper)
   - [Road Map](#road-map)
@@ -49,55 +50,83 @@ S-box Analyzer has been implemented as a SageMath module and employs ESPRESSO fo
 
 ## Usage
 
-Open SageMath in the same directory as the S-box analyzer. Import `sboxanalyzer` into the SageMath and then simply use it. The following example shows you how to use the S-box analyzer to encode the DDT of an S-box:
+Run the SageMath in the same directory as the S-box Analyzer. Next, import `sboxanalyzer` into the SageMath and then simply use it. The following example shows how to use the S-box Analyzer to encode the DDT of [GIFT](https://giftcipher.github.io/gift/)'s S-box:
 
 ```python
 sage: from sboxanalyzer import *  
-sage: from sage.crypto.sboxes import PRINTcipher as sb
+sage: from sage.crypto.sboxes import GIFT as sb
 sage: sa = SboxAnalyzer(sb)                               
 sage: cnf, milp = sa.minimized_diff_constraints()
-
+                                                       
 Simplifying the MILP/SAT constraints ...
-Time used to simplify the constraints: 0.01 seconds
-Number of constraints: 17
-Input:	a0||a1||a2; a0: msb
-Output:	b0||b1||b2; b0: msb
-Weight: 2.0000 p0
+Time used to simplify the constraints: 0.02 seconds
+Number of constraints: 49
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2
+
 
 sage: print(milp)
-['- a1 + p0 >= 0',
-'- b0 + p0 >= 0', 
-'- b2 + p0 >= 0', 
-'a0 + a1 - a2 + b2 >= 0', 
-'a1 + b0 - b1 + b2 >= 0', 
-'- a0 + b0 + b1 + b2 >= 0', 
-'a0 + a1 + a2 - p0 >= 0', 
-'a1 + a2 + b0 - p0 >= 0', 
-'a0 + a2 + b1 - p0 >= 0', 
-'a2 + b0 + b1 - p0 >= 0', 
-'a0 + b1 + b2 - p0 >= 0', 
-'- a1 - a2 + b0 - b1 - b2 >= -3', 
-'a0 - a1 - a2 - b1 - b2 >= -3', 
-'- a0 - a2 - b0 + b1 - b2 >= -3', 
-'- a0 - a1 - b0 - b1 + b2 >= -3', 
-'- a0 + a1 - a2 - b0 - b2 >= -3', 
-'- a0 - a1 + a2 - b0 - b1 >= -3']
+['- a0 - a1 - a2 + a3 - b2 >= -3'
+'a0 - a1 - a2 - a3 - b1 - b2 >= -4'
+'a0 - a1 + a2 - b0 + b1 - b2 >= -2'
+'a1 + a2 - b0 - b1 - b2 + b3 >= -2'
+'a1 - a2 - a3 + b1 - b2 + b3 >= -2'
+'a0 + a1 + a2 - b0 - b1 + b2 - b3 >= -2'
+'a0 + a1 - a2 - a3 + b1 + b2 - b3 >= -2'
+'- p0 - p1 >= -1'
+'- p0 - p2 >= -1'
+'- p1 - p2 >= -1'
+'a1 - a3 + p0 >= 0'
+'- b0 + b2 + p0 >= 0'
+'- b0 + b3 + p0 >= 0'
+'a2 + b1 - p2 >= 0'
+'b0 + b2 + b3 - p0 >= 0'
+'a0 - a3 + b0 + p0 >= 0'
+'- a0 - a3 + b1 + p0 >= -1'
+'a1 + a2 + b2 - p1 >= 0'
+'- a0 + a3 + b0 + p1 >= 0'
+'- a0 - a1 + a2 + a3 - b3 >= -2'
+'a1 - a2 + a3 - b2 - b3 >= -2'
+'a0 + a1 + b0 - b2 - b3 >= -1'
+'- a1 - a3 + b0 - b2 - b3 >= -3'
+'- a0 + b0 - b1 + b2 - b3 >= -2'
+'a0 + b0 + b1 + b2 - b3 >= 0'
+'a1 + a2 + a3 - b1 + b3 >= 0'
+'a1 + b0 + b1 - b2 + b3 >= 0'
+'a0 - a1 + a3 + b2 + b3 >= 0'
+'a1 - a2 + a3 + b2 + b3 >= 0'
+'- a0 + b0 + b1 + b2 + b3 >= 0'
+'a0 - a1 - a2 - b1 + p0 >= -2'
+'- a0 - a1 - b1 - b2 + p0 >= -3'
+'a1 + a2 + a3 - b0 + p1 >= 0'
+'a3 + b0 + b2 - b3 + p1 >= 0'
+'- a1 + b0 - b1 + b3 + p1 >= -1'
+'a3 + b0 - b2 + b3 + p1 >= 0'
+'a0 - a1 - a2 - b0 - b1 - b3 >= -4'
+'a0 - a1 + a2 - a3 + b1 - b3 >= -2'
+'- a0 - a2 - a3 - b1 + b2 - b3 >= -4'
+'- a0 + a2 - b0 + b1 + b2 - b3 >= -2'
+'a0 - a1 - b0 - b2 - b3 + p1 >= -3'
+'- a0 + a1 - b0 - b2 - b3 + p1 >= -3'
+'- a0 - a1 - a3 + b2 + b3 + p1 >= -2'
+'a0 + a2 + a3 - b1 - b2 + p2 >= -1'
+'a0 + a2 + a3 - b2 + p0 + p2 >= 0'
+'- a0 - a1 - a2 - a3 - b0 + b1 + b3 >= -4'
+'- a0 - a1 + a2 - a3 - b1 - b2 + b3 >= -4'
+'a0 - a1 - a2 + a3 + b1 - b3 + p2 >= -2']
 
 sage: print(cnf)
-(~a1 | p0) & (~b0 | p0) & (~b2 | p0) & (a0 | a1 | ~a2 | b2) & 
-(a1 | b0 | ~b1 | b2) & (~a0 | b0 | b1 | b2) & (a0 | a1 | a2 | ~p0) & 
-(a1 | a2 | b0 | ~p0) & (a0 | a2 | b1 | ~p0) & (a2 | b0 | b1 | ~p0) & (a0 | b1 | b2 | ~p0) & 
-(~a1 | ~a2 | b0 | ~b1 | ~b2) & (a0 | ~a1 | ~a2 | ~b1 | ~b2) & (~a0 | ~a2 | ~b0 | b1 | ~b2) & 
-(~a0 | ~a1 | ~b0 | ~b1 | b2) & (~a0 | a1 | ~a2 | ~b0 | ~b2) & (~a0 | ~a1 | a2 | ~b0 | ~b1)
+(~a0 | ~a1 | ~a2 | a3 | ~b2) & (a0 | ~a1 | ~a2 | ~a3 | ~b1 | ~b2) & (a0 | ~a1 | a2 | ~b0 | b1 | ~b2) & (a1 | a2 | ~b0 | ~b1 | ~b2 | b3) & (a1 | ~a2 | ~a3 | b1 | ~b2 | b3) & (a0 | a1 | a2 | ~b0 | ~b1 | b2 | ~b3) & (a0 | a1 | ~a2 | ~a3 | b1 | b2 | ~b3) & (~p0 | ~p1) & (~p0 | ~p2) & (~p1 | ~p2) & (a1 | ~a3 | p0) & (~b0 | b2 | p0) & (~b0 | b3 | p0) & (a2 | b1 | ~p2) & (b0 | b2 | b3 | ~p0) & (a0 | ~a3 | b0 | p0) & (~a0 | ~a3 | b1 | p0) & (a1 | a2 | b2 | ~p1) & (~a0 | a3 | b0 | p1) & (~a0 | ~a1 | a2 | a3 | ~b3) & (a1 | ~a2 | a3 | ~b2 | ~b3) & (a0 | a1 | b0 | ~b2 | ~b3) & (~a1 | ~a3 | b0 | ~b2 | ~b3) & (~a0 | b0 | ~b1 | b2 | ~b3) & (a0 | b0 | b1 | b2 | ~b3) & (a1 | a2 | a3 | ~b1 | b3) & (a1 | b0 | b1 | ~b2 | b3) & (a0 | ~a1 | a3 | b2 | b3) & (a1 | ~a2 | a3 | b2 | b3) & (~a0 | b0 | b1 | b2 | b3) & (a0 | ~a1 | ~a2 | ~b1 | p0) & (~a0 | ~a1 | ~b1 | ~b2 | p0) & (a1 | a2 | a3 | ~b0 | p1) & (a3 | b0 | b2 | ~b3 | p1) & (~a1 | b0 | ~b1 | b3 | p1) & (a3 | b0 | ~b2 | b3 | p1) & (a0 | ~a1 | ~a2 | ~b0 | ~b1 | ~b3) & (a0 | ~a1 | a2 | ~a3 | b1 | ~b3) & (~a0 | ~a2 | ~a3 | ~b1 | b2 | ~b3) & (~a0 | a2 | ~b0 | b1 | b2 | ~b3) & (a0 | ~a1 | ~b0 | ~b2 | ~b3 | p1) & (~a0 | a1 | ~b0 | ~b2 | ~b3 | p1) & (~a0 | ~a1 | ~a3 | b2 | b3 | p1) & (a0 | a2 | a3 | ~b1 | ~b2 | p2) & (a0 | a2 | a3 | ~b2 | p0 | p2) & (~a0 | ~a1 | ~a2 | ~a3 | ~b0 | b1 | b3) & (~a0 | ~a1 | a2 | ~a3 | ~b1 | ~b2 | b3) & (a0 | ~a1 | ~a2 | a3 | b1 | ~b3 | p2)
 ```
 
-Interpretation of the output:
+Interpretation of the outputs:
 
-- `Input:	a0||a1||a2; a0: msb`: $a_{0}||a_{1}||a_{2}$ encode the input difference vector $a$ where $a_{0}$ is the most significant bit of $a$.
-- `Output:	b0||b1||b2; b0: msb`: $b_{0}||b_{1}||b_{2}$ encode the output difference vector $b$ where $b_{0}$ is the most significant bit of $b$.
-- `Weight: 2.0000 p0`: $2\cdot p0$ is the weight of differential transition $a \rightarrow b$, i.e.,  $\Pr (a \rightarrow b) = 2^{-2\cdot p_0}$, where $p_{0}$ is a binary decision variable encoding the probability of valid transitions.
+- `Input:	a0||a1||a2||a3; a0: msb`: The binary vector $a = a_{0}||a_{1}||a_{2}||a_{3}$ encodes the input difference where $a_{0}$ is the most significant bit of $a$.
+- `Output:	b0||b1||b2||b3; b0: msb`: The binary evctor $b = b_{0}||b_{1}||b_{2}||b_{3}$ encodes the output difference where $b_{0}$ is the most significant bit of $b$.
+- `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, i.e.,  $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$, where $p_{0}, p_{1}$, and $p_{3}$ are binary decision variables to encode the probability of differential transitions.
 
-## More Examples
+## Examples
 
 ### Encoding the DDT of SKINNY-64
 
@@ -115,7 +144,7 @@ Output:	b0||b1||b2||b3; b0: msb
 Weight: 3.0000 p0 + 2.0000 p1
 ```
 
-**Our tool supports 7 different modes, i.e., `[mode=1,...,mode=7]`, for minimization to make a trade off between the time of simplification and the optimality of the solution.** For example using the following command we can minimize the number of constraints further:
+To make a trade off between the time of simplification and the optimality of the solution S-Boz Analyzer supports 7 different modes, i.e., `[mode=1,...,mode=7]`. The default mode is `6` which is the best choice in terms of both time and optimality. For example using the following command we can minimize the number of constraints a little further:
 
 ```python
 sage: cnf, milp = sa.minimized_diff_constraints(mode=5)
@@ -127,8 +156,6 @@ Input:	a0||a1||a2||a3; a0: msb
 Output:	b0||b1||b2||b3; b0: msb
 Weight: 3.0000 p0 + 2.0000 p1
 ```
-
-**The default mode is `6` since it is the best choice in terms of both time and optimality.**
 
 ### Encoding the DDT of Ascon
 
@@ -215,8 +242,7 @@ Number of constraints: 235
 Input:	a0||a1||a2||a3||a4||a5||a6||a7; a0: msb
 Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ```
-
-You can achieve more optimal solutions by `mode=2` or `mode=5`. However, the simplification time will be higher. I do not recommend it since the solution derived by `mode=2` is nearly optimum and sufficient to get a remarkable speed up in automatic differential analysis based on MILP or SAT/SMT. You can encode other sub-DDTs of SKINNY-8 in a similar way.
+You can encode other sub-DDTs of SKINNY-128's S-box in a similar way. Moreover, you may achieve a more optimal solution by using other modes such as `mode=2` or `mode=5`. However, the simplification time will be higher. The default mode is `mode=6` since it generates the nearly optimum result and it is sufficient to get a remarkable speed up in automatic differential analysis based on MILP or SAT/SMT.
 
 ### Encoding the DDT of AES
 
@@ -242,28 +268,45 @@ Input:	a0||a1||a2||a3||a4||a5||a6||a7; a0: msb
 Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ```
 
-As you can see our results concerning the encoding of AES DDT is much better than the results reported in [this paper](https://tosc.iacr.org/index.php/ToSC/article/view/805).
+As can be seen our results concerning encoding the DDT of AES's S-box is much better than the results reported in [this paper](https://tosc.iacr.org/index.php/ToSC/article/view/805).
+
+### Encoding the *-DDT and *-LAT
+
+In impossible differential attack (or zero correlation linearr attacks) where we want to only encode the possibility of a differential transition (or a linear transition), we encode the *-DDT (or *-LAT). As illustrated in the following example, by setting the `subtable` argument to `star` we can simply encode the *-DDT.
+
+```python
+sage: from sboxanalyzer import *                                                                            
+sage: from sage.crypto.sboxes import Midori_Sb0 as sb                                                       
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_diff_constraints(subtable="star", mode=5)
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.01 seconds
+Number of constraints: 47
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+```
 
 ### Encoding the DDT for CryptoSMT
 
 By setting the `cryptosmt_compatible` argument to `True`, you can generate an SMT formula compatible with CryptoSMT. For example, to encode the DDT of [CRAFT](https://tosc.iacr.org/index.php/ToSC/article/view/8466) in a format compatible with CryptoSMT, you can use the following commands:
 
 ```python
-sage: from sboxanalyzer import *                                                
-sage: from sage.crypto.sboxes import PRINTcipher as sb                          
-sage: sa = SboxAnalyzer(sb)                                                     
+sage: from sage.crypto.sboxes import CRAFT as sb                                                            
+sage: sa = SboxAnalyze(sb)                                                                                 
+sage: cnf, milp = sa.minimized_diff_constraints()                                                   
 sage: cnf, milp = sa.minimized_diff_constraints(cryptosmt_compatible=True)
 
 Simplifying the MILP/SAT constraints ...
-Time used to simplify the constraints: 0.01 seconds
-Number of constraints: 18
-Input:	a0||a1||a2; a0: msb
-Output:	b0||b1||b2; b0: msb
-Weight: p0 + p1
+Time used to simplify the constraints: 0.02 seconds
+Number of constraints: 54
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+Weight: p0 + p1 + p2
 
 sage: print(cnf)
 
-'(p0 | ~p1) & (~a1 | p1) & (~b0 | p1) & (~b2 | p1) & (a1 | a2 | b0 | ~b2) & (a0 | a2 | b1 | ~b2) & (a2 | b0 | b1 | ~b2) & (a0 | a1 | ~a2 | b2) & (a1 | b0 | ~b1 | b2) & (~a0 | b0 | b1 | b2) & (a0 | b1 | b2 | ~p0) & (a0 | a1 | a2 | ~p1) & (~a1 | ~a2 | b0 | ~b1 | ~b2) & (a0 | ~a1 | ~a2 | ~b1 | ~b2) & (~a0 | ~a2 | ~b0 | b1 | ~b2) & (~a0 | ~a1 | ~b0 | ~b1 | b2) & (~a0 | a1 | ~a2 | ~b0 | ~b2) & (~a0 | ~a1 | a2 | ~b0 | ~b1)'
+'(~a2 | p1) & (~b2 | p1) & (~p0 | p1) & (~p1 | p2) & (a1 | ~a2 | a3 | ~p0) & (a1 | ~a3 | b2 | p0) & (a2 | ~a3 | b2 | p0) & (~a1 | a3 | b2 | p0) & (a2 | b1 | ~b3 | p0) & (a2 | ~b1 | b3 | p0) & (~a0 | b2 | b3 | p0) & (a1 | a2 | a3 | ~b1 | ~b3) & (a0 | ~a2 | a3 | ~b2 | b3) & (~a1 | ~a2 | ~a3 | b2 | b3) & (~a1 | ~a3 | b0 | b1 | p0) & (a0 | a1 | ~b1 | ~b3 | p0) & (a1 | ~a3 | ~b1 | ~b3 | p0) & (~a1 | a3 | ~b1 | ~b3 | p0) & (~a0 | a3 | b1 | ~b3 | p0) & (~a1 | ~b0 | b1 | ~b3 | p0) & (a1 | ~a3 | ~b0 | b3 | p0) & (~a3 | ~b0 | ~b1 | b3 | p0) & (a0 | a1 | a2 | a3 | ~p2) & (b0 | b1 | b2 | b3 | ~p2) & (~a1 | ~a2 | ~b0 | b1 | b2 | ~b3) & (~a2 | a3 | b0 | ~b1 | b2 | ~p0) & (~a2 | ~a3 | b0 | b2 | ~b3 | ~p0) & (~a0 | a1 | ~a3 | ~b2 | b3 | ~p0) & (a0 | a3 | ~b0 | b1 | b3 | p0) & (a1 | a2 | a3 | b1 | b3 | ~p2) & (a0 | a3 | ~b0 | b1 | b2 | ~b3 | ~p0) & (~a0 | a1 | a2 | ~a3 | b0 | b3 | ~p0) & (a0 | a1 | ~b0 | ~b1 | b2 | b3 | ~p0) & (~a1 | ~a3 | b1 | b3 | ~p0 | ~p1 | ~p2) & (~a0 | ~a2 | b0 | ~b2 | p0 | ~p1 | ~p2) & (~a0 | ~a1 | a3 | ~b0 | b1 | ~b2 | ~p1 | ~p2) & (~a0 | a1 | ~a2 | ~b0 | ~b1 | b3 | ~p1 | ~p2) & (a0 | a2 | ~a3 | b1 | ~b2 | ~p0 | ~p1 | ~p2) & (a2 | b0 | ~b1 | ~b2 | ~b3 | ~p0 | ~p1 | ~p2) & (a0 | ~a1 | a2 | ~b2 | b3 | ~p0 | ~p1 | ~p2) & (a0 | ~a1 | ~a2 | ~a3 | ~b2 | p0 | ~p1 | ~p2) & (a0 | a1 | ~a2 | b1 | ~b2 | p0 | ~p1 | ~p2) & (~a0 | ~a1 | a2 | a3 | b0 | b1 | ~p0 | ~p1 | ~p2) & (~a2 | a3 | b1 | ~b2 | ~p0) & (a1 | ~a2 | ~b2 | b3 | ~p0) & (~a1 | ~a3 | ~b1 | ~b3 | ~p0) & (a2 | ~b0 | ~b1 | ~b3) & (~a0 | ~a3 | b0 | b1 | b2) & (a1 | ~a2 | b1 | ~b2 | ~p0) & (~a0 | ~a1 | b0 | b2 | b3) & (~a2 | a3 | ~b2 | b3 | ~p0) & (a0 | a1 | a2 | ~b0 | ~b3) & (a0 | a2 | a3 | ~b0 | ~b1) & (~a0 | ~a1 | ~a3 | b2)'
 
 ```
 

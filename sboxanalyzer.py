@@ -185,7 +185,6 @@ class SboxAnalyzer(SBox):
                 key = x + y
                 boolean_func[key] = self.star_ddt[dx][dy]
         boolean_func[tuple([0]*self.m + [0]*self.n)] = reverse ^ 1
-        boolean_func["star"] = True
         return boolean_func
 
     def _ddt_to_boolean_function(self, reverse=1):
