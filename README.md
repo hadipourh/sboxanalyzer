@@ -144,7 +144,7 @@ Output:	b0||b1||b2||b3; b0: msb
 Weight: 3.0000 p0 + 2.0000 p1
 ```
 
-To make a trade off between the time of simplification and the optimality of the solution S-Box Analyzer supports 7 different modes, i.e., `[mode=1,...,mode=7]`. The default mode is `6` which is the best choice in terms of both simplification time and optimality. For example, using the following command we can minimize the number of constraints a little more:
+To make a trade-off between the time of simplification and the solution's optimality, S-Box Analyzer supports seven different modes, i.e., `[mode=1,...,mode=7]`. The default mode is 6, which is the best choice for both simplification time and optimality. For example, using the following command, we can minimize the number of constraints a little more:
 
 ```python
 sage: cnf, milp = sa.minimized_diff_constraints(mode=5)
@@ -242,7 +242,7 @@ Number of constraints: 235
 Input:	a0||a1||a2||a3||a4||a5||a6||a7; a0: msb
 Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ```
-You can encode other sub-DDTs of SKINNY-128's S-box in a similar way. Moreover, you may achieve a more optimal solution by using other modes such as `mode=2` or `mode=5`. However, the simplification time will be higher. The default mode is `mode=6` since it generates the nearly optimum result and it is sufficient to get a remarkable speed up in automatic differential analysis based on MILP or SAT/SMT.
+You can encode other sub-DDTs of SKINNY-128's S-box in a similar way. Moreover, you may achieve a more optimal solution using the different modes such as `mode=2` or `mode=5`. However, the simplification time might be higher. The default mode is `mode=6` since it generates the nearly optimum result and is sufficient to get a remarkable speed up in automatic differential analysis based on MILP or SAT/SMT.
 
 ### Encoding the DDT of AES
 
@@ -332,7 +332,7 @@ If you use our tools in a project resulting in an academic publication, please a
  - [ ] Integrating the tool into the [SageMath](https://www.sagemath.org/)
  - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 
-The LAT and the MPT encoders are not implemented yet. However, they will follow exactly the same template as the DDT encoder and can be easily implemented. I will include them as soon as I get a chance. Any contributions or comments regarding the development of the tool are warmly welcome. 
+The LAT and the MPT encoders are not implemented yet. However, they will follow the same template as the DDT encoder and can be easily implemented. I will include them as soon as I get a chance. Any contributions or comments regarding the development of the tool are warmly welcome. 
 
 ## License
 
