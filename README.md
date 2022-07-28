@@ -272,7 +272,7 @@ As can be seen our results concerning encoding the DDT of AES's S-box is much be
 
 ### Encoding the *-DDT and *-LAT
 
-In impossible differential attack (or zero correlation linearr attacks) where we want to only encode the possibility of a differential transition (or a linear transition), we encode the *-DDT (or *-LAT). As illustrated in the following example, by setting the `subtable` argument to `star` we can simply encode the *-DDT.
+In impossible differential attack (or zero correlation linear attacks) we only encode the possibility of the differential transitions (or a linear transitions), i.e., the *-DDT (or *-LAT). As illustrated in the following example, by setting the `subtable` argument to `star` we can simply encode the *-DDT.
 
 ```python
 sage: from sboxanalyzer import *                                                                            
