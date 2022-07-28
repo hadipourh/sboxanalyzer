@@ -293,8 +293,7 @@ By setting the `cryptosmt_compatible` argument to `True`, you can generate an SM
 
 ```python
 sage: from sage.crypto.sboxes import CRAFT as sb                                                            
-sage: sa = SboxAnalyze(sb)                                                                                 
-sage: cnf, milp = sa.minimized_diff_constraints()                                                   
+sage: sa = SboxAnalyze(sb)                                                                                                                                   
 sage: cnf, milp = sa.minimized_diff_constraints(cryptosmt_compatible=True)
 
 Simplifying the MILP/SAT constraints ...
