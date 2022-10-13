@@ -314,13 +314,18 @@ sage: print(cnf)
 If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our paper:
 
 ```bib
-@misc{cryptoeprint:2022/745,
-      author = {Hosein Hadipour and Marcel Nageler and Maria Eichlseder},
-      title = {Throwing Boomerangs into Feistel Structures: Application to CLEFIA, WARP, LBlock, LBlock-s and TWINE},
-      howpublished = {Cryptology ePrint Archive, Paper 2022/745},
-      year = {2022},
-      note = {\url{https://eprint.iacr.org/2022/745}},
-      url = {https://eprint.iacr.org/2022/745}
+@article{DBLP:journals/tosc/HadipourNE22,
+  author    = {Hosein Hadipour and
+               Marcel Nageler and
+               Maria Eichlseder},
+  title     = {Throwing Boomerangs into Feistel Structures Application to CLEFIA,
+               WARP, LBlock, LBlock-s and {TWINE}},
+  journal   = {{IACR} Trans. Symmetric Cryptol.},
+  volume    = {2022},
+  number    = {3},
+  pages     = {271--302},
+  year      = {2022},
+  doi       = {10.46586/tosc.v2022.i3.271-302}
 }
 ```
 
