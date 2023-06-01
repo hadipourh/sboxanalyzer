@@ -44,7 +44,7 @@ S-box Analyzer has been implemented as a SageMath module and employs ESPRESSO fo
   make -j8
   ```
 
-  To see more details about the ESPRESSO logic minimizer, see [here](https://ptolemy.berkeley.edu/projects/embedded/pubs/downloads/espresso/index.htm). An updated version of ESPRESSO which is compatible with new compilers are available [here](https://github.com/classabbyamp/espresso-logic) and [here](https://github.com/chipsalliance/espresso/releases/tag/v2.4).
+  To see more details about the ESPRESSO logic minimizer, see [here](https://ptolemy.berkeley.edu/projects/embedded/pubs/downloads/espresso/index.htm). The updated versions of ESPRESSO, compatible with new compilers, are available [here](https://github.com/classabbyamp/espresso-logic) and [here](https://github.com/chipsalliance/espresso/releases/tag/v2.4).
 
 - SageMath
 
