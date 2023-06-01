@@ -65,7 +65,7 @@ from sage.all import *
 from sage.crypto.sboxes import SBox
 
 # ESPRESO_BIN_PATH = os.path.join(os.environ['SAGE_ROOT'], 'local/bin/espresso')
-ESPRESO_BIN_PATH = os.path.join(os.getcwd(), 'bin', 'espresso')
+ESPRESO_BIN_PATH = os.path.join(os.getcwd(), 'espresso', 'build', 'espresso')
 
 
 class SboxAnalyzer(SBox):
@@ -142,13 +142,13 @@ class SboxAnalyzer(SBox):
         self.truth_table_filename = os.path.join(os.getcwd(), 'tmp', 'tt_' + str(SboxAnalyzer.sbox_counter) + '.txt')
         self.simplified_truth_table_filename = os.path.join(os.getcwd(), 'tmp', 'stt_' + str(SboxAnalyzer.sbox_counter) + '.txt')        
         self.ddt = self.difference_distribution_table()
-        self.diff_spectrum = set([self.ddt[i][j] for i in range(2**self.m) for j in range(2**self.n)]) - {0, 2**self.m}
+        self.diff_spectrum = set([self.ddt[i][j] for i in range(2**self.input_size()) for j in range(2**self.output_size())]) - {0, 2**self.input_size()}
         self.diff_spectrum = sorted(list(self.diff_spectrum))
         self.npp = len(self.diff_spectrum)        
-        self.diff_weights = [abs(float(log(d/(2**self.m), 2))) for d in self.diff_spectrum]        
+        self.diff_weights = [abs(float(log(d/(2**self.input_size()), 2))) for d in self.diff_spectrum]        
         self.nww = int(max(self.diff_weights))
-        self.variables_mapping = "Input:\t{}; a0: msb".format("||".join([f"a{i}" for i in range(self.m)]))
-        self.variables_mapping += "\nOutput:\t{}; b0: msb".format("||".join([f"b{i}" for i in range(self.n)]))
+        self.variables_mapping = "Input:\t{}; a0: msb".format("||".join([f"a{i}" for i in range(self.input_size())]))
+        self.variables_mapping += "\nOutput:\t{}; b0: msb".format("||".join([f"b{i}" for i in range(self.output_size())]))
         self.cryptosmt_compatible = False
         self.ddt_subtable = None
         # self.lat = self.linear_approximation_table(scale="correlation")
@@ -162,9 +162,9 @@ class SboxAnalyzer(SBox):
         Star DDT is a 2^m*2^n binary array describing the possibility of differential transitions through the S-box
         """
         
-        self.star_ddt = [[0 for i in range(2**self.m)] for j in range(2**self.n)]
-        for dx in range(2**self.m):
-            for dy in range(2**self.n):
+        self.star_ddt = [[0 for i in range(2**self.input_size())] for j in range(2**self.output_size())]
+        for dx in range(2**self.input_size()):
+            for dy in range(2**self.output_size()):
                 if self.ddt[dx][dy] != 0:
                     self.star_ddt[dx][dy] = reverse ^ 1
                 else:
@@ -178,13 +178,13 @@ class SboxAnalyzer(SBox):
         
         self.compute_star_ddt(reverse=reverse)
         boolean_func = dict()
-        for dx in range(2**self.m):
-            x = tuple(map(int, list(bin(dx)[2:].zfill(self.m))))
-            for dy in range(2**self.n):
-                y = tuple(map(int, list(bin(dy)[2:].zfill(self.m))))
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for dy in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(dy)[2:].zfill(self.input_size()))))
                 key = x + y
                 boolean_func[key] = self.star_ddt[dx][dy]
-        boolean_func[tuple([0]*self.m + [0]*self.n)] = reverse ^ 1
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = reverse ^ 1
         return boolean_func
 
     def _ddt_to_boolean_function(self, reverse=1):
@@ -208,19 +208,19 @@ class SboxAnalyzer(SBox):
         """
         
         boolean_function = dict()
-        complexity = self.m + self.n        
-        for dx in range(2**self.m):
-            x = tuple(map(int, list(bin(dx)[2:].zfill(self.m))))
-            for dy in range(2**self.n):
-                y = tuple(map(int, list(bin(dy)[2:].zfill(self.n))))
+        complexity = self.input_size() + self.output_size()        
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for dy in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(dy)[2:].zfill(self.output_size()))))
                 # Specifying 0 points is not necessary at the input of ESPRESSO
                 if self.ddt[dx][dy] in self.diff_spectrum:
                     p = tuple([int(i == self.ddt[dx][dy]) for i in self.diff_spectrum])
                     key = x + y + p
                     boolean_function[key] = 1
-        boolean_function[tuple([0]*self.m + [0]*self.n + [0]*self.npp)] = 1
+        boolean_function[tuple([0]*self.input_size() + [0]*self.output_size() + [0]*self.npp)] = 1
         if reverse == 1:            
-            complexity = self.m + self.n + self.npp            
+            complexity = self.input_size() + self.output_size() + self.npp            
             for dx in range(2**complexity):
                 x = tuple(map(int, list(bin(dx)[2:].zfill(complexity))))
                 boolean_function[x] = boolean_function.get(x, 0) ^ 1
@@ -249,19 +249,19 @@ class SboxAnalyzer(SBox):
             raise ValueError("All transition's weights should be integers")
 
         boolean_function = dict()
-        complexity = self.m + self.n
-        for dx in range(2**self.m):
-            x = tuple(map(int, list(bin(dx)[2:].zfill(self.m))))
-            for dy in range(2**self.n):
-                y = tuple(map(int, list(bin(dy)[2:].zfill(self.n))))
+        complexity = self.input_size() + self.output_size()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for dy in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(dy)[2:].zfill(self.output_size()))))
                 # Specifying 0 points is not necessary at the input of ESPRESSO
                 if self.ddt[dx][dy] != 0:
-                    w = int(abs(float(log(self.ddt[dx][dy]/(2**self.m), 2))))
+                    w = int(abs(float(log(self.ddt[dx][dy]/(2**self.input_size()), 2))))
                     p = tuple([0]*(self.nww - w) + [1]*w)
                     key = x + y + p
                     boolean_function[key] = 1        
         if reverse == 1:            
-            complexity = self.m + self.n + self.npp
+            complexity = self.input_size() + self.output_size() + self.npp
             for dx in range(2**complexity):
                 x = tuple(map(int, list(bin(dx)[2:].zfill(complexity))))
                 boolean_function[x] = boolean_function.get(x, 0) ^ 1
@@ -273,10 +273,10 @@ class SboxAnalyzer(SBox):
         """
 
         boolean_function = dict()
-        for dx in range(2**self.m):
-            x = tuple(map(int, list(bin(dx)[2:].zfill(self.m))))
-            for dy in range(2**self.n):
-                y = tuple(map(int, list(bin(dy)[2:].zfill(self.n))))
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for dy in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(dy)[2:].zfill(self.output_size()))))
                 # Specifying 0 points is not necessary at the input of ESPRESSO
                 key = x + y
                 if self.ddt[dx][dy] == p:
@@ -295,19 +295,19 @@ class SboxAnalyzer(SBox):
         """
 
         if self.ddt_subtable != None:
-            file_contents = ".i %d\n" % (self.m + self.n)
+            file_contents = ".i %d\n" % (self.input_size() + self.output_size())
             file_contents += ".o 1\n"
-            file_contents += ".ilb " + " ".join("a%d" % i for i in range(self.m)) + " " +\
-                                   " ".join("b%d" % i for i in range(self.n)) + "\n"
+            file_contents += ".ilb " + " ".join("a%d" % i for i in range(self.input_size())) + " " +\
+                                   " ".join("b%d" % i for i in range(self.output_size())) + "\n"
         else:
             if self.cryptosmt_compatible:
                 num_of_p_vars = self.nww
             else:
                 num_of_p_vars = self.npp
-            file_contents = ".i %d\n" % (self.m + self.n + num_of_p_vars)
+            file_contents = ".i %d\n" % (self.input_size() + self.output_size() + num_of_p_vars)
             file_contents += ".o 1\n"
-            file_contents += ".ilb " + " ".join("a%d" % i for i in range(self.m)) + " " +\
-                                    " ".join("b%d" % i for i in range(self.n)) + " " +\
+            file_contents += ".ilb " + " ".join("a%d" % i for i in range(self.input_size())) + " " +\
+                                    " ".join("b%d" % i for i in range(self.output_size())) + " " +\
                                     " ".join("p%d" % i for i in range(num_of_p_vars)) + "\n"            
         file_contents += ".ob F\n"
         keys = list(boolean_function.keys())        
@@ -321,10 +321,10 @@ class SboxAnalyzer(SBox):
 
     def minimized_diff_constraints(self, mode=6, subtable=None, cryptosmt_compatible=False):
         """
-        Given a Boolean function, this method writes its truth table into a file
-        following the ESPRESSO input format, and calls ESPRESSO to derive its minimized
-        representation. Next, it parses the output of ESPRESSO and translates the derived
-        representation to the language of MILP and SAT solvers.
+        This method takes a given Boolean function and records its truth table in a file, 
+        adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
+        representation of the function. Following that, it interprets ESPRESSO's output and 
+        converts the simplified representation into the language recognized by MILP and SAT solvers.
 
         :param mode list: a set of flags specifying the configuration of ESPRESSO program
         :param booleanfunction dict: a Python dictionary representing the truth table of the given Boolean function
@@ -382,11 +382,11 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)
         # Parse the output of ESPRESSO
         if self.ddt_subtable == "star" or self.ddt_subtable in self.diff_spectrum:
-            alphabet = ['a%d' % i for i in range(self.m)] + \
-                       ['b%d' % i for i in range(self.n)]
+            alphabet = ['a%d' % i for i in range(self.input_size())] + \
+                       ['b%d' % i for i in range(self.output_size())]
         else:
-            alphabet = ['a%d' % i for i in range(self.m)] + \
-                       ['b%d' % i for i in range(self.n)]
+            alphabet = ['a%d' % i for i in range(self.input_size())] + \
+                       ['b%d' % i for i in range(self.output_size())]
             if self.cryptosmt_compatible:
                 alphabet += ['p%d' % i for i in range(self.nww)]
             else:

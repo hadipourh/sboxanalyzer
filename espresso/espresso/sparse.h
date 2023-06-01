@@ -85,34 +85,35 @@ struct sm_matrix_struct {
 #define sm_foreach_row_element(prow, p) \
     for (p = prow->first_col; p != 0; p = p->next_col)
 
-/* matrix.c */
-sm_matrix *sm_alloc();
-void sm_free(sm_matrix *A);
-sm_matrix *sm_dup(sm_matrix *A);
-void sm_resize(sm_matrix *A, int row, int col);
-sm_element *sm_insert(sm_matrix *A, int row, int col);
-void sm_delrow(sm_matrix *A, int i);
-void sm_delcol(sm_matrix *A, int i);
-void sm_cleanup();
+#define sm_foreach_col_element(pcol, p) \
+    for (p = pcol->first_row; p != 0; p = p->next_row)
 
-/* rows.c */
-sm_row *sm_row_alloc();
-void sm_row_free(sm_row *prow);
-sm_row *sm_row_dup(sm_row *prow);
-sm_element *sm_row_insert(sm_row *prow, int col);
-void sm_row_remove(sm_row *prow, int col);
-int sm_row_contains(sm_row *p1, sm_row *p2);
-int sm_row_intersects(sm_row *p1, sm_row *p2);
+#define sm_put(x, val) (x->user_word = (char *)val)
 
-/* cols.c */
-sm_col *sm_col_alloc();
-void sm_col_free(sm_col *pcol);
-int sm_col_contains(sm_col *p1, sm_col *p2);
-/* dominate.c */
-int sm_row_dominance(sm_matrix *A);
-int sm_col_dominance(sm_matrix *A, int *weight);
+#define sm_get(type, x) ((type)(x->user_word))
 
-/* part.c */
-int sm_block_partition(sm_matrix *A, sm_matrix **L, sm_matrix **R);
+extern sm_matrix *sm_alloc(), *sm_alloc_size(), *sm_dup();
+extern void sm_free(), sm_delrow(), sm_delcol(), sm_resize();
+extern void sm_write(), sm_print(), sm_dump(), sm_cleanup();
+extern void sm_copy_row(), sm_copy_col();
+extern void sm_remove(), sm_remove_element();
+extern sm_element *sm_insert(), *sm_find();
+extern sm_row *sm_longest_row();
+extern sm_col *sm_longest_col();
+extern int sm_read(), sm_read_compressed();
+
+extern sm_row *sm_row_alloc(), *sm_row_dup(), *sm_row_and();
+extern void sm_row_free(), sm_row_remove(), sm_row_print();
+extern sm_element *sm_row_insert(), *sm_row_find();
+extern int sm_row_contains(), sm_row_intersects();
+extern int sm_row_compare(), sm_row_hash();
+
+extern sm_col *sm_col_alloc(), *sm_col_dup(), *sm_col_and();
+extern void sm_col_free(), sm_col_remove(), sm_col_print();
+extern sm_element *sm_col_insert(), *sm_col_find();
+extern int sm_col_contains(), sm_col_intersects();
+extern int sm_col_compare(), sm_col_hash();
+
+extern int sm_row_dominance(), sm_col_dominance(), sm_block_partition();
 
 #endif

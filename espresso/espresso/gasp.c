@@ -28,7 +28,8 @@
  *  reduce are marked "NONPRIME"; those that reduced are marked "PRIME".
  *  The cubes are in the same order as in F.
  */
-static pcover reduce_gasp(pcover F, pcover D) {
+static pcover reduce_gasp(F, D) pcover F, D;
+{
     pcube p, last, cunder, *FD;
     pcover G;
 
@@ -47,6 +48,9 @@ static pcover reduce_gasp(pcover F, pcover D) {
             RESET(cunder, PRIME); /* it reduced ... */
             G = sf_addset(G, cunder);
         }
+        if (debug & GASP) {
+            printf("REDUCE_GASP: %s reduced to %s\n", pc1(p), pc2(cunder));
+        }
         free_cube(cunder);
     }
 
@@ -62,7 +66,11 @@ static pcover reduce_gasp(pcover F, pcover D) {
  *  regardless of whether they become covered or not.
  */
 
-pcover expand_gasp(pcover F, pcover D, pcover R, pcover Foriginal) {
+pcover expand_gasp(F, D, R, Foriginal) INOUT pcover F;
+IN pcover D;
+IN pcover R;
+IN pcover Foriginal;
+{
     int c1index;
     pcover G;
 
@@ -79,17 +87,22 @@ pcover expand_gasp(pcover F, pcover D, pcover R, pcover Foriginal) {
 /*
  *  expand1 -- Expand a single cube against the OFF-set, using the gasp strategy
  */
-void expand1_gasp(
-    pcover F,         /* reduced cubes of ON-set */
-    pcover D,         /* DC-set */
-    pcover R,         /* OFF-set */
-    pcover Foriginal, /* ON-set before reduction (same order as F) */
-    int c1index,      /* which index of F (or Freduced) to be checked */
-    pcover *G) {
-    int c2index;
-    pcube p, last, c2under;
+void expand1_gasp(F, D, R, Foriginal, c1index,
+                  G) pcover F; /* reduced cubes of ON-set */
+pcover D;                      /* DC-set */
+pcover R;                      /* OFF-set */
+pcover Foriginal;              /* ON-set before reduction (same order as F) */
+int c1index; /* which index of F (or Freduced) to be checked */
+pcover *G;
+{
+    register int c2index;
+    register pcube p, last, c2under;
     pcube RAISE, FREESET, temp, *FD, c2essential;
     pcover F1;
+
+    if (debug & EXPAND1) {
+        printf("\nEXPAND1_GASP:    \t%s\n", pc1(GETSET(F, c1index)));
+    }
 
     RAISE = new_cube();
     FREESET = new_cube();
@@ -158,8 +171,8 @@ void expand1_gasp(
 }
 
 /* irred_gasp -- Add new primes to F and find an irredundant subset */
-pcover irred_gasp(pcover F, pcover D, pcover G /* G is disposed of */
-) {
+pcover irred_gasp(F, D, G) pcover F, D, G; /* G is disposed of */
+{
     if (G->count != 0)
         F = irredundant(sf_append(F, G), D);
     else
@@ -168,12 +181,28 @@ pcover irred_gasp(pcover F, pcover D, pcover G /* G is disposed of */
 }
 
 /* last_gasp */
-pcover last_gasp(pcover F, pcover D, pcover R) {
+pcover last_gasp(F, D, R, cost) pcover F, D, R;
+cost_t *cost;
+{
     pcover G, G1;
 
-    G = reduce_gasp(F, D);
-    G1 = expand_gasp(G, D, R, F);
+    EXECUTE(G = reduce_gasp(F, D), GREDUCE_TIME, G, *cost);
+    EXECUTE(G1 = expand_gasp(G, D, R, F), GEXPAND_TIME, G1, *cost);
     free_cover(G);
-    F = irred_gasp(F, D, G1);
+    EXECUTE(F = irred_gasp(F, D, G1), GIRRED_TIME, F, *cost);
+    return F;
+}
+
+/* super_gasp */
+pcover super_gasp(F, D, R, cost) pcover F, D, R;
+cost_t *cost;
+{
+    pcover G, G1;
+
+    EXECUTE(G = reduce_gasp(F, D), GREDUCE_TIME, G, *cost);
+    EXECUTE(G1 = all_primes(G, R), GEXPAND_TIME, G1, *cost);
+    free_cover(G);
+    EXEC(G = sf_dupl(sf_append(F, G1)), "NEWPRIMES", G);
+    EXECUTE(F = irredundant(G, D), IRRED_TIME, F, *cost);
     return F;
 }

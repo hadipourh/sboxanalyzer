@@ -1,42 +1,37 @@
 #include "mincov_int.h"
 
-static sm_matrix *build_intersection_matrix(sm_matrix *A) {
-    sm_row *prow, *prow1;
-    sm_element *p, *p1;
-    sm_col *pcol;
-    sm_matrix *B;
+static sm_matrix *build_intersection_matrix();
 
-    /* Build row-intersection matrix */
-    B = sm_alloc();
-    for (prow = A->first_row; prow != 0; prow = prow->next_row) {
-        /* Clear flags on all rows we can reach from row 'prow' */
-        for (p = prow->first_col; p != 0; p = p->next_col) {
-            pcol = sm_get_col(A, p->col_num);
-            for (p1 = pcol->first_row; p1 != 0; p1 = p1->next_row) {
-                prow1 = sm_get_row(A, p1->row_num);
-                prow1->flag = 0;
-            }
-        }
+#if 0
+/*
+ *  verify that all rows in 'indep' are actually independent !
+ */
+static int 
+verify_indep_set(A, indep)
+sm_matrix *A;
+sm_row *indep;
+{
+    register sm_row *prow, *prow1;
+    register sm_element *p, *p1;
 
-        /* Now record which rows can be reached */
-        for (p = prow->first_col; p != 0; p = p->next_col) {
-            pcol = sm_get_col(A, p->col_num);
-            for (p1 = pcol->first_row; p1 != 0; p1 = p1->next_row) {
-                prow1 = sm_get_row(A, p1->row_num);
-                if (!prow1->flag) {
-                    prow1->flag = 1;
-                    (void)sm_insert(B, prow->row_num, prow1->row_num);
-                }
-            }
-        }
+    for(p = indep->first_col; p != 0; p = p->next_col) {
+	prow = sm_get_row(A, p->col_num);
+	for(p1 = p->next_col; p1 != 0; p1 = p1->next_col) {
+	    prow1 = sm_get_row(A, p1->col_num);
+	    if (sm_row_intersects(prow, prow1)) {
+		return 0;
+	    }
+	}
     }
-
-    return B;
+    return 1;
 }
+#endif
 
-solution_t *sm_maximal_independent_set(sm_matrix *A, int *weight) {
-    sm_row *best_row, *prow;
-    sm_element *p;
+solution_t *sm_maximal_independent_set(A, weight) sm_matrix *A;
+int *weight;
+{
+    register sm_row *best_row, *prow;
+    register sm_element *p;
     int least_weight;
     sm_row *save;
     sm_matrix *B;
@@ -86,4 +81,39 @@ solution_t *sm_maximal_independent_set(sm_matrix *A, int *weight) {
         }
     */
     return indep;
+}
+
+static sm_matrix *build_intersection_matrix(A) sm_matrix *A;
+{
+    register sm_row *prow, *prow1;
+    register sm_element *p, *p1;
+    register sm_col *pcol;
+    sm_matrix *B;
+
+    /* Build row-intersection matrix */
+    B = sm_alloc();
+    for (prow = A->first_row; prow != 0; prow = prow->next_row) {
+        /* Clear flags on all rows we can reach from row 'prow' */
+        for (p = prow->first_col; p != 0; p = p->next_col) {
+            pcol = sm_get_col(A, p->col_num);
+            for (p1 = pcol->first_row; p1 != 0; p1 = p1->next_row) {
+                prow1 = sm_get_row(A, p1->row_num);
+                prow1->flag = 0;
+            }
+        }
+
+        /* Now record which rows can be reached */
+        for (p = prow->first_col; p != 0; p = p->next_col) {
+            pcol = sm_get_col(A, p->col_num);
+            for (p1 = pcol->first_row; p1 != 0; p1 = p1->next_row) {
+                prow1 = sm_get_row(A, p1->row_num);
+                if (!prow1->flag) {
+                    prow1->flag = 1;
+                    (void)sm_insert(B, prow->row_num, prow1->row_num);
+                }
+            }
+        }
+    }
+
+    return B;
 }

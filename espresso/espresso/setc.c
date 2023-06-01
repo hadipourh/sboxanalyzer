@@ -41,8 +41,9 @@
 #include "espresso.h"
 
 /* see if the cube has a full row of 1's (with respect to cof) */
-bool full_row(pcube p, pcube cof) {
-    int i = LOOP(p);
+bool full_row(p, cof) IN register pcube p, cof;
+{
+    register int i = LOOP(p);
     do
         if ((p[i] | cof[i]) != cube.fullset[i])
             return FALSE;
@@ -54,10 +55,11 @@ bool full_row(pcube p, pcube cof) {
     cdist0 -- return TRUE if a and b are distance 0 apart
 */
 
-bool cdist0(pcube a, pcube b) {
+bool cdist0(a, b) register pcube a, b;
+{
     { /* Check binary variables */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last] & b[last];
@@ -74,8 +76,8 @@ bool cdist0(pcube a, pcube b) {
     }
 
     { /* Check the multiple-valued variables */
-        int w, var, last;
-        pcube mask;
+        register int w, var, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -95,12 +97,13 @@ bool cdist0(pcube a, pcube b) {
     exceeds 1, the value 2 is returned.
 */
 
-int cdist01(pset a, pset b) {
+int cdist01(a, b) register pset a, b;
+{
     int dist = 0;
 
     { /* Check binary variables */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last] & b[last];
@@ -119,8 +122,8 @@ int cdist01(pset a, pset b) {
     }
 
     { /* Check the multiple-valued variables */
-        int w, var, last;
-        pcube mask;
+        register int w, var, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -140,12 +143,13 @@ int cdist01(pset a, pset b) {
     number of null variables in their intersection).
 */
 
-int cdist(pset a, pset b) {
+int cdist(a, b) register pset a, b;
+{
     int dist = 0;
 
     { /* Check binary variables */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last] & b[last];
@@ -162,8 +166,8 @@ int cdist(pset a, pset b) {
     }
 
     { /* Check the multiple-valued variables */
-        int w, var, last;
-        pcube mask;
+        register int w, var, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -181,10 +185,12 @@ int cdist(pset a, pset b) {
     force_lower -- Determine which variables of a do not intersect b.
 */
 
-pset force_lower(pset xlower, pset a, pset b) {
+pset force_lower(xlower, a, b) INOUT pset xlower;
+IN register pset a, b;
+{
     { /* Check binary variables (if any) */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last] & b[last];
@@ -201,8 +207,8 @@ pset force_lower(pset xlower, pset a, pset b) {
     }
 
     { /* Check the multiple-valued variables */
-        int w, var, last;
-        pcube mask;
+        register int w, var, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -230,12 +236,14 @@ pset force_lower(pset xlower, pset a, pset b) {
     represents the consensus when a and b are distance 1 apart.
 */
 
-void consensus(pcube r, pcube a, pcube b) {
+void consensus(r, a, b) INOUT pcube r;
+IN register pcube a, b;
+{
     INLINEset_clear(r, cube.size);
 
     { /* Check binary variables (if any) */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             r[last] = x = a[last] & b[last];
@@ -255,8 +263,8 @@ void consensus(pcube r, pcube a, pcube b) {
         bool empty;
         int var;
         unsigned int x;
-        int w, last;
-        pcube mask;
+        register int w, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -276,12 +284,13 @@ void consensus(pcube r, pcube a, pcube b) {
     the cube, or return -1 if there are none or more than 2.
 */
 
-int cactive(pcube a) {
-    int active = -1, dist = 0;
+int cactive(a) register pcube a;
+{
+    int active = -1, dist = 0, bit_index();
 
     { /* Check binary variables */
-        int w, last;
-        unsigned int x;
+        register int w, last;
+        register unsigned int x;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last];
@@ -304,8 +313,8 @@ int cactive(pcube a) {
     }
 
     { /* Check the multiple-valued variables */
-        int w, var, last;
-        pcube mask;
+        register int w, var, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -326,11 +335,12 @@ int cactive(pcube a) {
     active variables include variables that are empty;
 */
 
-bool ccommon(pcube a, pcube b, pcube cof) {
+bool ccommon(a, b, cof) register pcube a, b, cof;
+{
     { /* Check binary variables */
         int last;
-        int w;
-        unsigned int x, y;
+        register int w;
+        register unsigned int x, y;
         if ((last = cube.inword) != -1) {
             /* Check the partial word of binary variables */
             x = a[last] | cof[last];
@@ -350,8 +360,8 @@ bool ccommon(pcube a, pcube b, pcube cof) {
 
     { /* Check the multiple-valued variables */
         int var;
-        int w, last;
-        pcube mask;
+        register int w, last;
+        register pcube mask;
         for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
             mask = cube.var_mask[var];
             last = cube.last_word[var];
@@ -384,14 +394,15 @@ bool ccommon(pcube a, pcube b, pcube cof) {
 */
 
 /* descend -- comparison for descending sort on set size */
-int descend(pset *a, pset *b) {
-    pset a1 = *a, b1 = *b;
+int descend(a, b) pset *a, *b;
+{
+    register pset a1 = *a, b1 = *b;
     if (SIZE(a1) > SIZE(b1))
         return -1;
     else if (SIZE(a1) < SIZE(b1))
         return 1;
     else {
-        int i = LOOP(a1);
+        register int i = LOOP(a1);
         do
             if (a1[i] > b1[i])
                 return -1;
@@ -403,14 +414,15 @@ int descend(pset *a, pset *b) {
 }
 
 /* ascend -- comparison for ascending sort on set size */
-int ascend(pset *a, pset *b) {
-    pset a1 = *a, b1 = *b;
+int ascend(a, b) pset *a, *b;
+{
+    register pset a1 = *a, b1 = *b;
     if (SIZE(a1) > SIZE(b1))
         return 1;
     else if (SIZE(a1) < SIZE(b1))
         return -1;
     else {
-        int i = LOOP(a1);
+        register int i = LOOP(a1);
         do
             if (a1[i] > b1[i])
                 return 1;
@@ -421,16 +433,56 @@ int ascend(pset *a, pset *b) {
     return 0;
 }
 
+/* lex_order -- comparison for "lexical" ordering of cubes */
+int lex_order(a, b) pset *a, *b;
+{
+    register pset a1 = *a, b1 = *b;
+    register int i = LOOP(a1);
+    do
+        if (a1[i] > b1[i])
+            return -1;
+        else if (a1[i] < b1[i])
+            return 1;
+    while (--i > 0);
+    return 0;
+}
+
 /* d1_order -- comparison for distance-1 merge routine */
-int d1_order(pset *a, pset *b) {
-    pset a1 = *a, b1 = *b, c1 = cube.temp[0];
-    int i = LOOP(a1);
-    unsigned int x1, x2;
+int d1_order(a, b) pset *a, *b;
+{
+    register pset a1 = *a, b1 = *b, c1 = cube.temp[0];
+    register int i = LOOP(a1);
+    register unsigned int x1, x2;
     do
         if ((x1 = a1[i] | c1[i]) > (x2 = b1[i] | c1[i]))
             return -1;
         else if (x1 < x2)
             return 1;
     while (--i > 0);
+    return 0;
+}
+
+/* desc1 -- comparison (without indirection) for descending sort */
+/* also has effect of handling NULL pointers,and a NULL pointer has smallest
+order */
+int desc1(a, b) register pset a, b;
+{
+    if (a == (pset)NULL)
+        return (b == (pset)NULL) ? 0 : 1;
+    else if (b == (pset)NULL)
+        return -1;
+    if (SIZE(a) > SIZE(b))
+        return -1;
+    else if (SIZE(a) < SIZE(b))
+        return 1;
+    else {
+        register int i = LOOP(a);
+        do
+            if (a[i] > b[i])
+                return -1;
+            else if (a[i] < b[i])
+                return 1;
+        while (--i > 0);
+    }
     return 0;
 }

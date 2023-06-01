@@ -15,7 +15,7 @@ S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints
     - [Encoding the DDT of PRESENT](#encoding-the-ddt-of-present)
     - [Encoding the DDT of SKINNY-128](#encoding-the-ddt-of-skinny-128)
     - [Encoding the DDT of AES](#encoding-the-ddt-of-aes)
-    - [Encoding the *-DDT and *-LAT](#encoding-the--ddt-and--lat)
+    - [Encoding the \*-DDT and \*-LAT](#encoding-the--ddt-and--lat)
     - [Encoding the DDT for CryptoSMT](#encoding-the-ddt-for-cryptosmt)
   - [Paper](#paper)
   - [Road Map](#road-map)
@@ -35,14 +35,16 @@ S-box Analyzer has been implemented as a SageMath module and employs ESPRESSO fo
 
 - ESPRESSO
 
-  To build ESPRESSO, use the following commands:
+  To build ESPRESSO, navigate into the espresso folder and run the following commands:
 
   ```bash
   cd espresso
-  make
+  mkdir build
+  cmake ..
+  make -j8
   ```
 
-  To see more details about the ESPRESSO logic minimizer, see [here](https://ptolemy.berkeley.edu/projects/embedded/pubs/downloads/espresso/index.htm). An updated version of ESPRESSO which is compatible with new compilers is available [here](https://github.com/classabbyamp/espresso-logic).
+  To see more details about the ESPRESSO logic minimizer, see [here](https://ptolemy.berkeley.edu/projects/embedded/pubs/downloads/espresso/index.htm). An updated version of ESPRESSO which is compatible with new compilers are available [here](https://github.com/classabbyamp/espresso-logic) and [here](https://github.com/chipsalliance/espresso/releases/tag/v2.4).
 
 - SageMath
 

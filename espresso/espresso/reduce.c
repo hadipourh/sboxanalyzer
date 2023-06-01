@@ -43,12 +43,18 @@ static bool toggle = TRUE;
     as fast as possible.
 */
 
-pcover reduce(pcover F, pcover D) {
-    pcube last, p, cunder, *FD;
+pcover reduce(F, D) INOUT pcover F;
+IN pcover D;
+{
+    register pcube last, p, cunder, *FD;
 
     /* Order the cubes */
-    F = toggle ? sort_reduce(F) : mini_sort(F, descend);
-    toggle = !toggle;
+    if (use_random_order)
+        F = random_order(F);
+    else {
+        F = toggle ? sort_reduce(F) : mini_sort(F, descend);
+        toggle = !toggle;
+    }
 
     /* Try to reduce each cube */
     FD = cube2list(F, D);
@@ -58,6 +64,10 @@ pcover reduce(pcover F, pcover D) {
             SET(p, ACTIVE);          /* cube remains active */
             SET(p, PRIME);           /* cube remains prime ? */
         } else {
+            if (debug & REDUCE) {
+                printf("REDUCE: %s to %s %s\n", pc1(p), pc2(cunder),
+                       print_time(ptime()));
+            }
             set_copy(p, cunder); /* save reduced version */
             RESET(p, PRIME);     /* cube is no longer prime */
             if (setp_empty(cunder))
@@ -74,7 +84,8 @@ pcover reduce(pcover F, pcover D) {
 }
 
 /* reduce_cube -- find the maximal reduction of a cube */
-pcube reduce_cube(pcube *FD, pcube p) {
+pcube reduce_cube(FD, p) IN pcube *FD, p;
+{
     pcube cunder;
 
     cunder = sccc(cofactor(FD, p));
@@ -82,27 +93,35 @@ pcube reduce_cube(pcube *FD, pcube p) {
 }
 
 /* sccc -- find Smallest Cube Containing the Complement of a cover */
-pcube sccc(pcube *T /* T will be disposed of */
-) {
+pcube sccc(T) INOUT pcube *T; /* T will be disposed of */
+{
     pcube r;
-    pcube cl, cr;
-    int best;
+    register pcube cl, cr;
+    register int best;
+    static int sccc_level = 0;
+
+    if (debug & REDUCE1) {
+        debug_print(T, "SCCC", sccc_level++);
+    }
 
     if (sccc_special_cases(T, &r) == MAYBE) {
         cl = new_cube();
         cr = new_cube();
-        best = binate_split_select(T, cl, cr);
+        best = binate_split_select(T, cl, cr, REDUCE1);
         r = sccc_merge(sccc(scofactor(T, cl, best)),
                        sccc(scofactor(T, cr, best)), cl, cr);
         free_cubelist(T);
     }
 
+    if (debug & REDUCE1)
+        printf("SCCC[%d]: result is %s\n", --sccc_level, pc1(r));
     return r;
 }
 
-pcube sccc_merge(pcube left, pcube right, /* will be disposed of ... */
-                 pcube cl, pcube cr       /* will be disposed of ... */
-) {
+pcube sccc_merge(left, right, cl, cr) INOUT register pcube left,
+    right;                   /* will be disposed of ... */
+INOUT register pcube cl, cr; /* will be disposed of ... */
+{
     INLINEset_and(left, left, cl);
     INLINEset_and(right, right, cr);
     INLINEset_or(left, left, right);
@@ -125,8 +144,9 @@ pcube sccc_merge(pcube left, pcube right, /* will be disposed of ... */
 
     This is "anded" with the incoming cube result.
 */
-pcube sccc_cube(pcube result, pcube p) {
-    pcube temp = cube.temp[0], mask;
+pcube sccc_cube(result, p) register pcube result, p;
+{
+    register pcube temp = cube.temp[0], mask;
     int var;
 
     if ((var = cactive(p)) >= 0) {
@@ -141,10 +161,11 @@ pcube sccc_cube(pcube result, pcube p) {
  *   sccc_special_cases -- check the special cases for sccc
  */
 
-bool sccc_special_cases(pcube *T, /* will be disposed if answer is determined */
-                        pcube *result /* returned only if answer determined */
-) {
-    pcube *T1, p, temp = cube.temp[1], ceil, cof = T[0];
+bool sccc_special_cases(
+    T, result) INOUT pcube *T; /* will be disposed if answer is determined */
+OUT pcube *result;             /* returned only if answer determined */
+{
+    register pcube *T1, p, temp = cube.temp[1], ceil, cof = T[0];
     pcube *A, *B;
 
     /* empty cover => complement is universe => SCCC is universe */
@@ -203,7 +224,7 @@ bool sccc_special_cases(pcube *T, /* will be disposed if answer is determined */
 
     /* Check for components */
     if (cdata.var_zeros[cdata.best] < CUBELISTSIZE(T) / 2) {
-        if (cubelist_partition(T, &A, &B) == 0) {
+        if (cubelist_partition(T, &A, &B, debug & REDUCE1) == 0) {
             return MAYBE;
         } else {
             free_cubelist(T);

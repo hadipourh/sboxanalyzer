@@ -28,9 +28,11 @@
 */
 
 /* cofactor -- compute the cofactor of a cover with respect to a cube */
-pcube *cofactor(pcube *T, pcube c) {
+pcube *cofactor(T, c) IN pcube *T;
+IN register pcube c;
+{
     pcube temp = cube.temp[0], *Tc_save, *Tc, *T1;
-    pcube p;
+    register pcube p;
     int listlen;
 
     listlen = CUBELISTSIZE(T) + 5;
@@ -50,8 +52,8 @@ pcube *cofactor(pcube *T, pcube c) {
                 goto false;
 #else
             {
-                int w, last;
-                unsigned int x;
+                register int w, last;
+                register unsigned int x;
                 if ((last = cube.inword) != -1) {
                     x = p[last] & c[last];
                     if (~(x | x >> 1) & cube.inmask)
@@ -64,8 +66,8 @@ pcube *cofactor(pcube *T, pcube c) {
                 }
             }
             {
-                int w, var, last;
-                pcube mask;
+                register int w, var, last;
+                register pcube mask;
                 for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
                     mask = cube.var_mask[var];
                     last = cube.last_word[var];
@@ -95,10 +97,12 @@ pcube *cofactor(pcube *T, pcube c) {
     This routine has been optimized for speed.
 */
 
-pcube *scofactor(pcube *T, pcube c, int var) {
+pcube *scofactor(T, c, var) IN pcube *T, c;
+IN int var;
+{
     pcube *Tc, *Tc_save;
-    pcube p, mask = cube.temp[1], *T1;
-    int first = cube.first_word[var], last = cube.last_word[var];
+    register pcube p, mask = cube.temp[1], *T1;
+    register int first = cube.first_word[var], last = cube.last_word[var];
     int listlen;
 
     listlen = CUBELISTSIZE(T) + 5;
@@ -116,7 +120,7 @@ pcube *scofactor(pcube *T, pcube c, int var) {
     /* Loop for each cube in the list, determine suitability, and save */
     for (T1 = T + 2; (p = *T1++) != NULL;)
         if (p != c) {
-            int i = first;
+            register int i = first;
             do
                 if (p[i] & mask[i]) {
                     *Tc++ = p;
@@ -130,22 +134,23 @@ pcube *scofactor(pcube *T, pcube c, int var) {
     return Tc_save;
 }
 
-void massive_count(pcube *T) {
+void massive_count(T) IN pcube *T;
+{
     int *count = cdata.part_zeros;
     pcube *T1;
 
     /* Clear the column counts (count of # zeros in each column) */
     {
-        int i;
+        register int i;
         for (i = cube.size - 1; i >= 0; i--)
             count[i] = 0;
     }
 
     /* Count the number of zeros in each column */
     {
-        int i, *cnt;
-        unsigned int val;
-        pcube p, cof = T[0], full = cube.fullset;
+        register int i, *cnt;
+        register unsigned int val;
+        register pcube p, cof = T[0], full = cube.fullset;
         for (T1 = T + 2; (p = *T1++) != NULL;)
             for (i = LOOP(p); i > 0; i--)
                 if ((val = full[i] & ~(p[i] | cof[i]))) {
@@ -241,7 +246,7 @@ void massive_count(pcube *T) {
      */
 
     {
-        int var, i, lastbit, active, maxactive;
+        register int var, i, lastbit, active, maxactive;
         int best = -1, mostactive = 0, mostzero = 0, mostbalanced = 32000;
         cdata.vars_unate = cdata.vars_active = 0;
 
@@ -291,10 +296,13 @@ void massive_count(pcube *T) {
     }
 }
 
-int binate_split_select(pcube *T, pcube cleft, pcube cright) {
+int binate_split_select(T, cleft, cright, debug_flag) IN pcube *T;
+IN register pcube cleft, cright;
+IN int debug_flag;
+{
     int best = cdata.best;
-    int i, lastbit = cube.last_part[best], halfbit = 0;
-    pcube cof = T[0];
+    register int i, lastbit = cube.last_part[best], halfbit = 0;
+    register pcube cof = T[0];
 
     /* Create the cubes to cofactor against */
     set_diff(cleft, cube.fullset, cube.var_mask[best]);
@@ -309,11 +317,17 @@ int binate_split_select(pcube *T, pcube cleft, pcube cright) {
         if (!is_in_set(cof, i))
             set_insert(cright, i);
 
+    if (debug & debug_flag) {
+        printf("BINATE_SPLIT_SELECT: split against %d\n", best);
+        if (verbose_debug)
+            printf("cl=%s\ncr=%s\n", pc1(cleft), pc2(cright));
+    }
     return best;
 }
 
-pcube *cube1list(pcover A) {
-    pcube last, p, *plist, *list;
+pcube *cube1list(A) pcover A;
+{
+    register pcube last, p, *plist, *list;
 
     list = plist = ALLOC(pcube, A->count + 3);
     *plist++ = new_cube();
@@ -326,8 +340,9 @@ pcube *cube1list(pcover A) {
     return list;
 }
 
-pcube *cube2list(pcover A, pcover B) {
-    pcube last, p, *plist, *list;
+pcube *cube2list(A, B) pcover A, B;
+{
+    register pcube last, p, *plist, *list;
 
     list = plist = ALLOC(pcube, A->count + B->count + 3);
     *plist++ = new_cube();
@@ -343,8 +358,9 @@ pcube *cube2list(pcover A, pcover B) {
     return list;
 }
 
-pcube *cube3list(pcover A, pcover B, pcover C) {
-    pcube last, p, *plist, *list;
+pcube *cube3list(A, B, C) pcover A, B, C;
+{
+    register pcube last, p, *plist, *list;
 
     plist = ALLOC(pcube, A->count + B->count + C->count + 3);
     list = plist;
@@ -364,10 +380,11 @@ pcube *cube3list(pcover A, pcover B, pcover C) {
     return list;
 }
 
-pcover cubeunlist(pcube *A1) {
-    int i;
-    pcube p, pdest, cof = A1[0];
-    pcover A;
+pcover cubeunlist(A1) pcube *A1;
+{
+    register int i;
+    register pcube p, pdest, cof = A1[0];
+    register pcover A;
 
     A = new_cover(CUBELISTSIZE(A1));
     for (i = 2; (p = A1[i]) != NULL; i++) {
@@ -376,4 +393,26 @@ pcover cubeunlist(pcube *A1) {
     }
     A->count = CUBELISTSIZE(A1);
     return A;
+}
+
+void simplify_cubelist(T) pcube *T;
+{
+    register pcube *Tdest;
+    register int i, ncubes;
+
+    set_copy(cube.temp[0], T[0]); /* retrieve cofactor */
+
+    ncubes = CUBELISTSIZE(T);
+    qsort((char *)(T + 2), ncubes, sizeof(pset), d1_order);
+
+    Tdest = T + 2;
+    /*   *Tdest++ = T[2];   */
+    for (i = 3; i < ncubes; i++) {
+        if (d1_order(&T[i - 1], &T[i]) != 0) {
+            *Tdest++ = T[i];
+        }
+    }
+
+    *Tdest++ = NULL;         /* sentinel */
+    Tdest[1] = (pcube)Tdest; /* save pointer to last */
 }

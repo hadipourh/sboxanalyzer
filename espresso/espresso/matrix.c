@@ -15,7 +15,7 @@ sm_col *sm_col_freelist;
 #endif
 
 sm_matrix *sm_alloc() {
-    sm_matrix *A;
+    register sm_matrix *A;
 
     A = ALLOC(sm_matrix, 1);
     A->rows = NIL(sm_row *);
@@ -28,9 +28,19 @@ sm_matrix *sm_alloc() {
     return A;
 }
 
-void sm_free(sm_matrix *A) {
+sm_matrix *sm_alloc_size(row, col) int row, col;
+{
+    register sm_matrix *A;
+
+    A = sm_alloc();
+    sm_resize(A, row, col);
+    return A;
+}
+
+void sm_free(A) sm_matrix *A;
+{
 #ifdef FAST_AND_LOOSE
-    sm_row *prow;
+    register sm_row *prow;
 
     if (A->first_row != 0) {
         for (prow = A->first_row; prow != 0; prow = prow->next_row) {
@@ -48,8 +58,8 @@ void sm_free(sm_matrix *A) {
         sm_col_freelist = A->first_col;
     }
 #else
-    sm_row *prow, *pnext_row;
-    sm_col *pcol, *pnext_col;
+    register sm_row *prow, *pnext_row;
+    register sm_col *pcol, *pnext_col;
 
     for (prow = A->first_row; prow != 0; prow = pnext_row) {
         pnext_row = prow->next_row;
@@ -68,10 +78,11 @@ void sm_free(sm_matrix *A) {
     FREE(A);
 }
 
-sm_matrix *sm_dup(sm_matrix *A) {
-    sm_row *prow;
-    sm_element *p;
-    sm_matrix *B;
+sm_matrix *sm_dup(A) sm_matrix *A;
+{
+    register sm_row *prow;
+    register sm_element *p;
+    register sm_matrix *B;
 
     B = sm_alloc();
     if (A->last_row != 0) {
@@ -85,8 +96,10 @@ sm_matrix *sm_dup(sm_matrix *A) {
     return B;
 }
 
-void sm_resize(sm_matrix *A, int row, int col) {
-    int i, new_size;
+void sm_resize(A, row, col) register sm_matrix *A;
+int row, col;
+{
+    register int i, new_size;
 
     if (row >= A->rows_size) {
         new_size = MAX(A->rows_size * 2, row + 1);
@@ -110,10 +123,12 @@ void sm_resize(sm_matrix *A, int row, int col) {
 /*
  *  insert -- insert a value into the matrix
  */
-sm_element *sm_insert(sm_matrix *A, int row, int col) {
-    sm_row *prow;
-    sm_col *pcol;
-    sm_element *element;
+sm_element *sm_insert(A, row, col) register sm_matrix *A;
+register int row, col;
+{
+    register sm_row *prow;
+    register sm_col *pcol;
+    register sm_element *element;
     sm_element *save_element;
 
     if (row >= A->rows_size || col >= A->cols_size) {
@@ -155,8 +170,68 @@ sm_element *sm_insert(sm_matrix *A, int row, int col) {
     return element;
 }
 
-void sm_delrow(sm_matrix *A, int i) {
-    sm_element *p, *pnext;
+sm_element *sm_find(A, rownum, colnum) sm_matrix *A;
+int rownum, colnum;
+{
+    sm_row *prow;
+    sm_col *pcol;
+
+    prow = sm_get_row(A, rownum);
+    if (prow == NIL(sm_row)) {
+        return NIL(sm_element);
+    } else {
+        pcol = sm_get_col(A, colnum);
+        if (pcol == NIL(sm_col)) {
+            return NIL(sm_element);
+        }
+        if (prow->length < pcol->length) {
+            return sm_row_find(prow, colnum);
+        } else {
+            return sm_col_find(pcol, rownum);
+        }
+    }
+}
+
+void sm_remove(A, rownum, colnum) sm_matrix *A;
+int rownum, colnum;
+{ sm_remove_element(A, sm_find(A, rownum, colnum)); }
+
+void sm_remove_element(A, p) register sm_matrix *A;
+register sm_element *p;
+{
+    register sm_row *prow;
+    register sm_col *pcol;
+
+    if (p == 0)
+        return;
+
+    /* Unlink the element from its row */
+    prow = sm_get_row(A, p->row_num);
+    dll_unlink(p, prow->first_col, prow->last_col, next_col, prev_col,
+               prow->length);
+
+    /* if no more elements in the row, discard the row header */
+    if (prow->first_col == NIL(sm_element)) {
+        sm_delrow(A, p->row_num);
+    }
+
+    /* Unlink the element from its column */
+    pcol = sm_get_col(A, p->col_num);
+    dll_unlink(p, pcol->first_row, pcol->last_row, next_row, prev_row,
+               pcol->length);
+
+    /* if no more elements in the column, discard the column header */
+    if (pcol->first_row == NIL(sm_element)) {
+        sm_delcol(A, p->col_num);
+    }
+
+    sm_element_free(p);
+}
+
+void sm_delrow(A, i) sm_matrix *A;
+int i;
+{
+    register sm_element *p, *pnext;
     sm_col *pcol;
     sm_row *prow;
 
@@ -185,8 +260,10 @@ void sm_delrow(sm_matrix *A, int i) {
     }
 }
 
-void sm_delcol(sm_matrix *A, int i) {
-    sm_element *p, *pnext;
+void sm_delcol(A, i) sm_matrix *A;
+int i;
+{
+    register sm_element *p, *pnext;
     sm_row *prow;
     sm_col *pcol;
 
@@ -215,11 +292,196 @@ void sm_delcol(sm_matrix *A, int i) {
     }
 }
 
+void sm_copy_row(dest, dest_row, prow) register sm_matrix *dest;
+int dest_row;
+sm_row *prow;
+{
+    register sm_element *p;
+
+    for (p = prow->first_col; p != 0; p = p->next_col) {
+        (void)sm_insert(dest, dest_row, p->col_num);
+    }
+}
+
+void sm_copy_col(dest, dest_col, pcol) register sm_matrix *dest;
+int dest_col;
+sm_col *pcol;
+{
+    register sm_element *p;
+
+    for (p = pcol->first_row; p != 0; p = p->next_row) {
+        (void)sm_insert(dest, dest_col, p->row_num);
+    }
+}
+
+sm_row *sm_longest_row(A) sm_matrix *A;
+{
+    register sm_row *large_row, *prow;
+    register int max_length;
+
+    max_length = 0;
+    large_row = NIL(sm_row);
+    for (prow = A->first_row; prow != 0; prow = prow->next_row) {
+        if (prow->length > max_length) {
+            max_length = prow->length;
+            large_row = prow;
+        }
+    }
+    return large_row;
+}
+
+sm_col *sm_longest_col(A) sm_matrix *A;
+{
+    register sm_col *large_col, *pcol;
+    register int max_length;
+
+    max_length = 0;
+    large_col = NIL(sm_col);
+    for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+        if (pcol->length > max_length) {
+            max_length = pcol->length;
+            large_col = pcol;
+        }
+    }
+    return large_col;
+}
+
+int sm_num_elements(A) sm_matrix *A;
+{
+    register sm_row *prow;
+    register int num;
+
+    num = 0;
+    sm_foreach_row(A, prow) {
+        num += prow->length;
+    }
+    return num;
+}
+
+int sm_read(fp, A) FILE *fp;
+sm_matrix **A;
+{
+    int i, j, err;
+
+    *A = sm_alloc();
+    while (!feof(fp)) {
+        err = fscanf(fp, "%d %d", &i, &j);
+        if (err == EOF) {
+            return 1;
+        } else if (err != 2) {
+            return 0;
+        }
+        (void)sm_insert(*A, i, j);
+    }
+    return 1;
+}
+
+int sm_read_compressed(fp, A) FILE *fp;
+sm_matrix **A;
+{
+    int i, j, k, nrows, ncols;
+    unsigned long x;
+
+    *A = sm_alloc();
+    if (fscanf(fp, "%d %d", &nrows, &ncols) != 2) {
+        return 0;
+    }
+    sm_resize(*A, nrows, ncols);
+
+    for (i = 0; i < nrows; i++) {
+        if (fscanf(fp, "%lx", &x) != 1) {
+            return 0;
+        }
+        for (j = 0; j < ncols; j += 32) {
+            if (fscanf(fp, "%lx", &x) != 1) {
+                return 0;
+            }
+            for (k = j; x != 0; x >>= 1, k++) {
+                if (x & 1) {
+                    (void)sm_insert(*A, i, k);
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+void sm_write(fp, A) FILE *fp;
+sm_matrix *A;
+{
+    register sm_row *prow;
+    register sm_element *p;
+
+    for (prow = A->first_row; prow != 0; prow = prow->next_row) {
+        for (p = prow->first_col; p != 0; p = p->next_col) {
+            (void)fprintf(fp, "%d %d\n", p->row_num, p->col_num);
+        }
+    }
+}
+
+void sm_print(fp, A) FILE *fp;
+sm_matrix *A;
+{
+    register sm_row *prow;
+    register sm_col *pcol;
+    int c;
+
+    if (A->last_col->col_num >= 100) {
+        (void)fprintf(fp, "    ");
+        for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+            (void)fprintf(fp, "%d", (pcol->col_num / 100) % 10);
+        }
+        putc('\n', fp);
+    }
+
+    if (A->last_col->col_num >= 10) {
+        (void)fprintf(fp, "    ");
+        for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+            (void)fprintf(fp, "%d", (pcol->col_num / 10) % 10);
+        }
+        putc('\n', fp);
+    }
+
+    (void)fprintf(fp, "    ");
+    for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+        (void)fprintf(fp, "%d", pcol->col_num % 10);
+    }
+    putc('\n', fp);
+
+    (void)fprintf(fp, "    ");
+    for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+        (void)fprintf(fp, "-");
+    }
+    putc('\n', fp);
+
+    for (prow = A->first_row; prow != 0; prow = prow->next_row) {
+        (void)fprintf(fp, "%3d:", prow->row_num);
+
+        for (pcol = A->first_col; pcol != 0; pcol = pcol->next_col) {
+            c = sm_row_find(prow, pcol->col_num) ? '1' : '.';
+            putc(c, fp);
+        }
+        putc('\n', fp);
+    }
+}
+
+void sm_dump(A, s, max) sm_matrix *A;
+char *s;
+int max;
+{
+    FILE *fp = stdout;
+
+    (void)fprintf(fp, "%s %d rows by %d cols\n", s, A->nrows, A->ncols);
+    if (A->nrows < max) {
+        sm_print(fp, A);
+    }
+}
+
 void sm_cleanup() {
 #ifdef FAST_AND_LOOSE
-    sm_element *p, *pnext;
-    sm_row *prow, *pnextrow;
-    sm_col *pcol, *pnextcol;
+    register sm_element *p, *pnext;
+    register sm_row *prow, *pnextrow;
+    register sm_col *pcol, *pnextcol;
 
     for (p = sm_element_freelist; p != 0; p = pnext) {
         pnext = p->next_col;

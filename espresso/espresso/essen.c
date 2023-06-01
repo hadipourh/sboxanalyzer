@@ -24,8 +24,9 @@
     on these primes for essentiality.
 */
 
-pcover essential(pcover *Fp, pcover *Dp) {
-    pcube last, p;
+pcover essential(Fp, Dp) IN pcover *Fp, *Dp;
+{
+    register pcube last, p;
     pcover E, F = *Fp, D = *Dp;
 
     /* set all cubes in F active */
@@ -41,6 +42,8 @@ pcover essential(pcover *Fp, pcover *Dp) {
             if (TESTP(p, RELESSEN)) {
                 /* Check essentiality */
                 if (essen_cube(F, D, p)) {
+                    if (debug & ESSEN)
+                        printf("ESSENTIAL: %s\n", pc1(p));
                     E = sf_addset(E, p);
                     RESET(p, ACTIVE);
                     F->active_count--;
@@ -64,7 +67,9 @@ pcover essential(pcover *Fp, pcover *Dp) {
 
     does not contain c.
 */
-bool essen_cube(pcover F, pcover D, pcube c) {
+bool essen_cube(F, D, c) IN pcover F, D;
+IN pcube c;
+{
     pcover H, FD;
     pcube *H1;
     bool essen;
@@ -86,9 +91,11 @@ bool essen_cube(pcover F, pcover D, pcube c) {
 /*
  *  cb_consensus -- compute consensus(T # c, c)
  */
-pcover cb_consensus(pcover T, pcube c) {
-    pcube temp, last, p;
-    pcover R;
+pcover cb_consensus(T, c) register pcover T;
+register pcube c;
+{
+    register pcube temp, last, p;
+    register pcover R;
 
     R = new_cover(T->count * 2);
     temp = new_cube();
@@ -116,11 +123,13 @@ pcover cb_consensus(pcover T, pcube c) {
  *  form the sharp-consensus for p and c when they intersect
  *  What we are forming is consensus(p # c, c).
  */
-pcover cb_consensus_dist0(pcover R, pcube p, pcube c) {
+pcover cb_consensus_dist0(R, p, c) pcover R;
+register pcube p, c;
+{
     int var;
     bool got_one;
-    pcube temp, mask;
-    pcube p_diff_c = cube.temp[0], p_and_c = cube.temp[1];
+    register pcube temp, mask;
+    register pcube p_diff_c = cube.temp[0], p_and_c = cube.temp[1];
 
     /* If c contains p, then this gives us no information for essential test */
     if (setp_implies(p, c)) {

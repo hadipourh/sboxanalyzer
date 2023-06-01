@@ -1,5 +1,7 @@
 project(espresso C)
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
+
+add_library(utility utility/cpu_time.c utility/prtime.c utility/strsav.c)
 
 add_executable(
   espresso
@@ -13,59 +15,51 @@ add_executable(
   espresso/cvrmisc.c
   espresso/cvrout.c
   espresso/dominate.c
+  espresso/equiv.c
   espresso/espresso.c
   espresso/essen.c
+  espresso/exact.c
   espresso/expand.c
   espresso/gasp.c
+  espresso/getopt.c
   espresso/gimpel.c
   espresso/globals.c
+  espresso/hack.c
   espresso/indep.c
   espresso/irred.c
   espresso/main.c
+  espresso/map.c
   espresso/matrix.c
   espresso/mincov.c
+  espresso/opo.c
+  espresso/pair.c
   espresso/part.c
+  espresso/primes.c
   espresso/reduce.c
   espresso/rows.c
   espresso/set.c
   espresso/setc.c
+  espresso/sharp.c
   espresso/sminterf.c
   espresso/solution.c
   espresso/sparse.c
-  espresso/unate.c)
+  espresso/unate.c
+  espresso/verify.c
+  espresso/signature.c
+  espresso/signature_exact.c
+  espresso/util_signature.c
+  espresso/black_white.c
+  espresso/canonical.c
+  espresso/essentiality.c
+  espresso/sigma.c)
+target_link_libraries(espresso utility)
+target_include_directories(espresso PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utility)
 set_property(TARGET espresso PROPERTY C_STANDARD 99)
 
 include(GNUInstallDirs)
 install(TARGETS espresso RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-# documentation
-option(BUILD_DOC "Build documentation." ON)
-
-if(BUILD_DOC)
-  find_program(ASCIIDOCTOR_EXE asciidoctor)
-  if(NOT ASCIIDOCTOR_EXE)
-    message(SEND_ERROR "asciidoctor not found, cannot create man pages")
-  endif()
-
-  set(DOCDIR ${CMAKE_CURRENT_SOURCE_DIR}/doc)
-  set(A2M ${ASCIIDOCTOR_EXE} -b manpage)
-
-  macro(add_man SRC DST SECT)
-    add_custom_command(
-      OUTPUT ${DST}.${SECT}
-      COMMAND ${A2M} -o ${DST}.${SECT} ${DOCDIR}/${SRC}.adoc
-      MAIN_DEPENDENCY ${DOCDIR}/${SRC}.adoc)
-
-    set(MANS ${MANS} ${DST}.${SECT})
-
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${DST}.${SECT}
-            DESTINATION ${CMAKE_INSTALL_MANDIR}/man${SECT})
-  endmacro(add_man)
-
-  add_man(espresso espresso 1)
-
-  add_custom_target(doc ALL DEPENDS ${MANS})
-endif()
+install(FILES man/espresso.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES man/espresso.5 DESTINATION ${CMAKE_INSTALL_MANDIR}/man5)
 
 enable_testing()
 foreach(
@@ -78,10 +72,13 @@ foreach(
   examples/amd
   examples/apla
   examples/b10
+  examples/b11
+  examples/b12
   examples/b2
   examples/b3
   examples/b4
   examples/b7
+  examples/b9
   examples/bc0
   examples/bca
   examples/bcb
@@ -90,10 +87,11 @@ foreach(
   examples/br1
   examples/br2
   examples/check
-  examples/check1
+  examples/check~
   examples/check2
   examples/chkn
   examples/clpl
+  examples/cps
   examples/dc1
   examples/dc2
   examples/dekoder
@@ -101,12 +99,16 @@ foreach(
   examples/dk17
   examples/dk27
   examples/dk48
+  examples/ex1010
+  examples/ex4
+  examples/ex5
   examples/ex7
   examples/exep
   examples/exp
   examples/exps
   examples/f51m
   examples/gary
+  examples/ibm
   examples/in0
   examples/in1
   examples/in2
@@ -115,18 +117,24 @@ foreach(
   examples/in5
   examples/in6
   examples/in7
+  examples/inc
   examples/intb
+  examples/jbp
   examples/lin.rom
   examples/luc
   examples/m1
   examples/m2
   examples/m3
   examples/m4
+  examples/mainpla
   examples/mark1
   examples/max1024
   examples/max128
   examples/max46
   examples/max512
+  examples/misg
+  examples/mish
+  examples/misj
   examples/mlp4
   examples/mp2d
   examples/mytest
@@ -148,6 +156,7 @@ foreach(
   examples/newxcpla1
   examples/opa
   examples/p82
+  examples/pdc
   examples/pope.rom
   examples/prom1
   examples/prom2
@@ -155,6 +164,10 @@ foreach(
   examples/root
   examples/ryy6
   examples/sex
+  examples/shift
+  examples/signet
+  examples/soar.pla
+  examples/spla
   examples/sqn
   examples/sqr6
   examples/t1
@@ -162,13 +175,18 @@ foreach(
   examples/t3
   examples/t4
   examples/tcheck
+  examples/ti
   examples/tms
+  examples/ts10
   examples/vg2
   examples/vtx1
   examples/wim
   examples/x1dn
+  examples/x2dn
   examples/x6dn
+  examples/x7dn
   examples/x9dn
+  examples/xparc
   hard_examples/ex1010
   hard_examples/ex4
   hard_examples/ibm
@@ -204,13 +222,17 @@ foreach(
   tlex/cps.pla
   tlex/duke2.pla
   tlex/e64.pla
+  tlex/ex1010.pla
+  tlex/ex4.pla
   tlex/ex5.pla
   tlex/inc.pla
   tlex/misex1.pla
   tlex/misex2.pla
   tlex/misex3c.pla
   tlex/misex3.pla
-  # tlex/o64.pla
+  tlex/mytest.pla
+  # tlex/o64.pla # ???
+  tlex/pdc.pla
   tlex/rd53.pla
   tlex/rd73.pla
   tlex/rd84.pla
@@ -225,7 +247,6 @@ foreach(
   tlex/xor5.pla
   tlex/Z5xp1.pla
   tlex/Z9sym.pla)
-  add_test(run_${PLA} sh -c
-           "./espresso < ${CMAKE_CURRENT_SOURCE_DIR}/examples/${PLA}")
+  add_test(run_${PLA} ./espresso ${CMAKE_CURRENT_SOURCE_DIR}/examples/${PLA})
   set_tests_properties(run_${PLA} PROPERTIES TIMEOUT 10)
 endforeach()

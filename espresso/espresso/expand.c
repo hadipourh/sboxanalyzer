@@ -10,7 +10,7 @@
     heuristics of minimum_cover.
 
     These routines revolve around having a representation of the
-    OFF-set. (contrast to the Espresso-II manuscript, we do NOT
+    OFF-set.  (In contrast to the Espresso-II manuscript, we do NOT
     require an "unwrapped" version of the OFF-set).
 
     Some conventions on variable names:
@@ -38,16 +38,20 @@
     this is done by forcing all of the sparse variables out of the free set.
 */
 
-pcover expand(pcover F, pcover R,
-              bool nonsparse /* expand non-sparse variables only */
-) {
-    pcube last, p;
+pcover expand(F, R, nonsparse) INOUT pcover F;
+IN pcover R;
+IN bool nonsparse; /* expand non-sparse variables only */
+{
+    register pcube last, p;
     pcube RAISE, FREESET, INIT_LOWER, SUPER_CUBE, OVEREXPANDED_CUBE;
     int var, num_covered;
     bool change;
 
     /* Order the cubes according to "chewing-away from the edges" of mini */
-    F = mini_sort(F, ascend);
+    if (use_random_order)
+        F = random_order(F);
+    else
+        F = mini_sort(F, ascend);
 
     /* Allocate memory for variables needed by expand1() */
     RAISE = new_cube();
@@ -75,6 +79,8 @@ pcover expand(pcover F, pcover R,
             /* expand the cube p, result is RAISE */
             expand1(R, F, RAISE, FREESET, OVEREXPANDED_CUBE, SUPER_CUBE,
                     INIT_LOWER, &num_covered, p);
+            if (debug & EXPAND)
+                printf("EXPAND: %s (covered %d)\n", pc1(p), num_covered);
             (void)set_copy(p, RAISE);
             SET(p, PRIME);
             RESET(p, COVERED); /* not really necessary */
@@ -112,17 +118,21 @@ pcover expand(pcover F, pcover R,
 /*
     expand1 -- Expand a single cube against the OFF-set
 */
-void expand1(pcover BB,     /* Blocking matrix (OFF-set) */
-             pcover CC,     /* Covering matrix (ON-set) */
-             pcube RAISE,   /* The current parts which have been raised */
-             pcube FREESET, /* The current parts which are free */
-             pcube OVEREXPANDED_CUBE, /* Overexpanded cube of c */
-             pcube SUPER_CUBE, /* Supercube of all cubes of CC we cover */
-             pcube INIT_LOWER, /* Parts to initially remove from FREESET */
-             int *num_covered, /* Number of cubes of CC which are covered */
-             pcube c           /* The cube to be expanded */
-) {
+void expand1(BB, CC, RAISE, FREESET, OVEREXPANDED_CUBE, SUPER_CUBE, INIT_LOWER,
+             num_covered, c) pcover BB; /* Blocking matrix (OFF-set) */
+pcover CC;                              /* Covering matrix (ON-set) */
+pcube RAISE;             /* The current parts which have been raised */
+pcube FREESET;           /* The current parts which are free */
+pcube OVEREXPANDED_CUBE; /* Overexpanded cube of c */
+pcube SUPER_CUBE;        /* Supercube of all cubes of CC we cover */
+pcube INIT_LOWER;        /* Parts to initially remove from FREESET */
+int *num_covered;        /* Number of cubes of CC which are covered */
+pcube c;                 /* The cube to be expanded */
+{
     int bestindex;
+
+    if (debug & EXPAND1)
+        printf("\nEXPAND1:    \t%s\n", pc1(c));
 
     /* initialize BB and CC */
     SET(c, PRIME); /* don't try to cover ourself */
@@ -182,8 +192,10 @@ void expand1(pcover BB,     /* Blocking matrix (OFF-set) */
     overexpanded cube of RAISE.
 */
 
-void essen_parts(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
-    pcube p, r = RAISE;
+void essen_parts(BB, CC, RAISE, FREESET) pcover BB, CC;
+pcube RAISE, FREESET;
+{
+    register pcube p, r = RAISE;
     pcube lastp, xlower = cube.temp[0];
     int dist;
 
@@ -195,8 +207,8 @@ void essen_parts(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
             goto exit_if;
 #else
         {
-            int w, last;
-            unsigned int x;
+            register int w, last;
+            register unsigned int x;
             dist = 0;
             if ((last = cube.inword) != -1) {
                 x = p[last] & r[last];
@@ -212,8 +224,8 @@ void essen_parts(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
             }
         }
         {
-            int w, var, last;
-            pcube mask;
+            register int w, var, last;
+            register pcube mask;
             for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
                 mask = cube.var_mask[var];
                 last = cube.last_word[var];
@@ -240,6 +252,9 @@ void essen_parts(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
         (void)set_diff(FREESET, FREESET, xlower); /* remove from free set */
         elim_lowering(BB, CC, RAISE, FREESET);
     }
+
+    if (debug & EXPAND1)
+        printf("ESSEN_PARTS:\tRAISE=%s FREESET=%s\n", pc1(RAISE), pc2(FREESET));
 }
 
 /*
@@ -250,8 +265,10 @@ void essen_parts(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
     this part can always be raised.
 */
 
-void essen_raising(pcover BB, pcube RAISE, pcube FREESET) {
-    pcube last, p, xraise = cube.temp[0];
+void essen_raising(BB, RAISE, FREESET) register pcover BB;
+pcube RAISE, FREESET;
+{
+    register pcube last, p, xraise = cube.temp[0];
 
     /* Form union of all cubes of BB, and then take complement wrt FREESET */
     (void)set_copy(xraise, cube.emptyset);
@@ -260,6 +277,10 @@ void essen_raising(pcover BB, pcube RAISE, pcube FREESET) {
 
     (void)set_or(RAISE, RAISE, xraise);       /* add to raising set */
     (void)set_diff(FREESET, FREESET, xraise); /* remove from free set */
+
+    if (debug & EXPAND1)
+        printf("ESSEN_RAISING:\tRAISE=%s FREESET=%s\n", pc1(RAISE),
+               pc2(FREESET));
 }
 
 /*
@@ -271,8 +292,10 @@ void essen_raising(pcover BB, pcube RAISE, pcube FREESET) {
     from CC any cube which is not covered by the overexpanded cube.
 */
 
-void elim_lowering(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
-    pcube p, r = set_or(cube.temp[0], RAISE, FREESET);
+void elim_lowering(BB, CC, RAISE, FREESET) pcover BB, CC;
+pcube RAISE, FREESET;
+{
+    register pcube p, r = set_or(cube.temp[0], RAISE, FREESET);
     pcube last;
 
     /*
@@ -283,8 +306,8 @@ void elim_lowering(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
         if (!cdist0(p, r))
 #else
         {
-            int w, lastw;
-            unsigned int x;
+            register int w, lastw;
+            register unsigned int x;
             if ((lastw = cube.inword) != -1) {
                 x = p[lastw] & r[lastw];
                 if (~(x | x >> 1) & cube.inmask)
@@ -297,8 +320,8 @@ void elim_lowering(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
             }
         }
         {
-            int w, var, lastw;
-            pcube mask;
+            register int w, var, lastw;
+            register pcube mask;
             for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
                 mask = cube.var_mask[var];
                 lastw = cube.last_word[var];
@@ -340,9 +363,11 @@ void elim_lowering(pcover BB, pcover CC, pcube RAISE, pcube FREESET) {
     original cube).  We resort to the MINI strategy of selecting to
     raise the part which will cover the same part in the most cubes of CC.
 */
-int most_frequent(pcover CC, pcube FREESET) {
-    int i, best_part, best_count, *count;
-    pset p, last;
+int most_frequent(CC, FREESET) pcover CC;
+pcube FREESET;
+{
+    register int i, best_part, best_count, *count;
+    register pset p, last;
 
     /* Count occurences of each variable */
     count = ALLOC(int, cube.size);
@@ -360,6 +385,8 @@ int most_frequent(pcover CC, pcube FREESET) {
         }
     FREE(count);
 
+    if (debug & EXPAND1)
+        printf("MOST_FREQUENT:\tbest=%d FREESET=%s\n", best_part, pc2(FREESET));
     return best_part;
 }
 
@@ -371,8 +398,9 @@ int most_frequent(pcover CC, pcube FREESET) {
     (i.e., nonprime cubes, and cubes not already covered)
 */
 
-void setup_BB_CC(pcover BB, pcover CC) {
-    pcube p, last;
+void setup_BB_CC(BB, CC) register pcover BB, CC;
+{
+    register pcube p, last;
 
     /* Create the block and cover set families */
     BB->active_count = BB->count;
@@ -396,10 +424,13 @@ void setup_BB_CC(pcover BB, pcover CC) {
     after expanding to cover the fcc.  (Essentially one-level lookahead).
 */
 
-void select_feasible(pcover BB, pcover CC, pcube RAISE, pcube FREESET,
-                     pcube SUPER_CUBE, int *num_covered) {
-    pcube p, last, bestfeas, *feas;
-    int i, j;
+void select_feasible(BB, CC, RAISE, FREESET, SUPER_CUBE, num_covered) pcover BB,
+    CC;
+pcube RAISE, FREESET, SUPER_CUBE;
+int *num_covered;
+{
+    register pcube p, last, bestfeas, *feas;
+    register int i, j;
     pcube *feas_new_lower;
     int bestcount, bestsize, count, size, numfeas, lastfeas;
     pcover new_lower;
@@ -449,6 +480,10 @@ loop:
             }
         }
     }
+    if (debug & EXPAND1)
+        printf("SELECT_FEASIBLE: started with %d pfcc, ended with %d fcc\n",
+               lastfeas, numfeas);
+
     /* Exit here if there are no feasibly covered cubes */
     if (numfeas == 0) {
         FREE(feas);
@@ -487,6 +522,8 @@ loop:
     /* Add the necessary parts to the raising set */
     (void)set_or(RAISE, RAISE, bestfeas);
     (void)set_diff(FREESET, FREESET, RAISE);
+    if (debug & EXPAND1)
+        printf("FEASIBLE:  \tRAISE=%s FREESET=%s\n", pc1(RAISE), pc2(FREESET));
     essen_parts(BB, CC, RAISE, FREESET);
     goto loop;
     /* NOTREACHED */
@@ -500,8 +537,10 @@ loop:
     the lowering set.
 */
 
-bool feasibly_covered(pcover BB, pcube c, pcube RAISE, pcube new_lower) {
-    pcube p, r = set_or(cube.temp[0], RAISE, c);
+bool feasibly_covered(BB, c, RAISE, new_lower) pcover BB;
+pcube c, RAISE, new_lower;
+{
+    register pcube p, r = set_or(cube.temp[0], RAISE, c);
     int dist;
     pcube lastp;
 
@@ -512,8 +551,8 @@ bool feasibly_covered(pcover BB, pcube c, pcube RAISE, pcube new_lower) {
             goto exit_if;
 #else
         {
-            int w, last;
-            unsigned int x;
+            register int w, last;
+            register unsigned int x;
             dist = 0;
             if ((last = cube.inword) != -1) {
                 x = p[last] & r[last];
@@ -529,8 +568,8 @@ bool feasibly_covered(pcover BB, pcube c, pcube RAISE, pcube new_lower) {
             }
         }
         {
-            int w, var, last;
-            pcube mask;
+            register int w, var, last;
+            register pcube mask;
             for (var = cube.num_binary_vars; var < cube.num_vars; var++) {
                 mask = cube.var_mask[var];
                 last = cube.last_word[var];
@@ -561,10 +600,12 @@ bool feasibly_covered(pcover BB, pcube c, pcube RAISE, pcube new_lower) {
     This may be painful.
 */
 
-void mincov(pcover BB, pcube RAISE, pcube FREESET) {
+void mincov(BB, RAISE, FREESET) pcover BB;
+pcube RAISE, FREESET;
+{
     int expansion, nset, var, dist;
     pset_family B;
-    pcube xraise = cube.temp[0], xlower, p, last, plower;
+    register pcube xraise = cube.temp[0], xlower, p, last, plower;
 
 #ifdef RANDOM_MINCOV
     dist = random() % set_ord(FREESET);
@@ -609,6 +650,9 @@ void mincov(pcover BB, pcube RAISE, pcube FREESET) {
     (void)set_or(RAISE, RAISE, set_diff(xraise, FREESET, xlower));
     (void)set_copy(FREESET, cube.emptyset); /* free set is empty */
     BB->active_count = 0;                   /* BB satisfied */
+    if (debug & EXPAND1) {
+        printf("MINCOV:    \tRAISE=%s FREESET=%s\n", pc1(RAISE), pc2(FREESET));
+    }
     sf_free(B);
     set_free(xlower);
     return;
@@ -621,4 +665,72 @@ heuristic_mincov:
     essen_parts(BB, /*CC*/ (pcover)NULL, RAISE, FREESET);
     return;
 #endif
+}
+
+/*
+    find_all_primes -- find all of the primes which cover the
+    currently reduced BB
+*/
+pcover find_all_primes(BB, RAISE, FREESET) pcover BB;
+register pcube RAISE, FREESET;
+{
+    register pset last, p, plower;
+    pset_family B, B1;
+
+    if (BB->active_count == 0) {
+        B1 = new_cover(1);
+        p = GETSET(B1, B1->count++);
+        (void)set_copy(p, RAISE);
+        SET(p, PRIME);
+    } else {
+        B = new_cover(BB->active_count);
+        foreach_active_set(BB, last, p) {
+            plower = set_copy(GETSET(B, B->count++), cube.emptyset);
+            (void)force_lower(plower, p, RAISE);
+        }
+        B = sf_rev_contain(unravel(B, cube.num_binary_vars));
+        B1 = exact_minimum_cover(B);
+        foreach_set(B1, last, p) {
+            INLINEset_diff(p, FREESET, p);
+            INLINEset_or(p, p, RAISE);
+            SET(p, PRIME);
+        }
+        free_cover(B);
+    }
+    return B1;
+}
+
+/*
+    all_primes -- foreach cube in F, generate all of the primes
+    which cover the cube.
+*/
+
+pcover all_primes(F, R) pcover F, R;
+{
+    register pcube last, p, RAISE, FREESET;
+    pcover Fall_primes, B1;
+
+    FREESET = new_cube();
+    RAISE = new_cube();
+    Fall_primes = new_cover(F->count);
+
+    foreach_set(F, last, p) {
+        if (TESTP(p, PRIME)) {
+            Fall_primes = sf_addset(Fall_primes, p);
+        } else {
+            /* Setup for call to essential parts */
+            (void)set_copy(RAISE, p);
+            (void)set_diff(FREESET, cube.fullset, RAISE);
+            setup_BB_CC(R, /* CC */ (pcover)NULL);
+            essen_parts(R, /* CC */ (pcover)NULL, RAISE, FREESET);
+
+            /* Find all of the primes, and add them to the prime set */
+            B1 = find_all_primes(R, RAISE, FREESET);
+            Fall_primes = sf_append(Fall_primes, B1);
+        }
+    }
+
+    set_free(RAISE);
+    set_free(FREESET);
+    return Fall_primes;
 }
