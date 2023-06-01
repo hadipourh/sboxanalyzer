@@ -1,0 +1,8 @@
+# cmake
+CMakeCache.txt
+CMakeFiles/
+build/
+cmake_install.cmake
+# clion
+.idea/
+cmake-build-*
