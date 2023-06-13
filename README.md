@@ -39,7 +39,7 @@ S-box Analyzer has been implemented as a SageMath module and employs ESPRESSO fo
 
   ```bash
   cd espresso
-  mkdir build
+  mkdir build && cd build
   cmake ..
   make -j8
   ```
