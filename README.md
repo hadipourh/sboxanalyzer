@@ -198,7 +198,7 @@ To encode the DDT of large S-boxes (8-bit S-boxes), we usually divide the DDT in
 ```python
 sage: from sage.crypto.sboxes import SKINNY_8 as sb                            
 sage: sa = SboxAnalyzer(sb)                                                    
-sage: sa.diff_spectrum                                                         
+sage: sa.get_differential_spectrum()                                                     
 [2, 4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 64]
 
 sage: cnf, milp = sa.minimized_diff_constraints(subtable=2, mode=2)
@@ -251,7 +251,7 @@ You can encode other sub-DDTs of SKINNY-128's S-box in a similar way. Moreover, 
 ```python
 sage: from sage.crypto.sboxes import AES as sb                                 
 sage: sa = SboxAnalyzer(sb)                                                    
-sage: sa.diff_spectrum                                                         
+sage: sa.get_differential_spectrum()                                                         
 [2, 4]
 
 sage: cnf, milp = sa.minimized_diff_constraints(subtable=2)
@@ -277,8 +277,8 @@ As can be seen our results concerning encoding the DDT of AES's S-box is much be
 In impossible differential attack (or zero correlation linear attacks) we only encode the possibility of the differential transitions (or a linear transitions), i.e., the *-DDT (or *-LAT). As illustrated in the following example, by setting the `subtable` argument to `star` we can simply encode the *-DDT.
 
 ```python
-sage: from sboxanalyzer import *                                                                            
-sage: from sage.crypto.sboxes import Midori_Sb0 as sb                                                       
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Midori_Sb0 as sb
 sage: sa = SboxAnalyzer(sb)
 sage: cnf, milp = sa.minimized_diff_constraints(subtable="star", mode=5)
 
@@ -294,8 +294,9 @@ Output:	b0||b1||b2||b3; b0: msb
 By setting the `cryptosmt_compatible` argument to `True`, you can generate an SMT formula compatible with CryptoSMT. For example, to encode the DDT of [CRAFT](https://tosc.iacr.org/index.php/ToSC/article/view/8466) in a format compatible with CryptoSMT, you can use the following commands:
 
 ```python
-sage: from sage.crypto.sboxes import CRAFT as sb                                                            
-sage: sa = SboxAnalyze(sb)                                                                                                                                   
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import CRAFT as sb
+sage: sa = SboxAnalyzer(sb)                                         
 sage: cnf, milp = sa.minimized_diff_constraints(cryptosmt_compatible=True)
 
 Simplifying the MILP/SAT constraints ...
@@ -334,7 +335,7 @@ If you use our tools in a project resulting in an academic publication, please a
 ## Road Map
 
  - [x] Encoding DDT
- - [ ] Encoding LAT
+ - [x] Encoding LAT
  - [ ] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
  - [ ] Integrating the tool into the [SageMath](https://www.sagemath.org/)
  - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
