@@ -1,6 +1,9 @@
 # S-box Analyzer
+[![license](./images/license-MIT-green.svg)](./LICENSE.txt)
 
-S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints to encode the Differential Distribution Table (DDT), Linear Approximation Table (LAT), and [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
+
+S-box Analyzer is a tool for analyzing S-boxes against differential, linear, differential-linear, and integral attacks. 
+Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode the Differential Distribution Table (DDT), Linear Approximation Table (LAT), [Differential-Linear Connectivity Table (DLCT)](https://ia.cr/2024/255) and [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
 
 ---
 ![logo](./images/sboxanalyzer.svg)
@@ -9,7 +12,7 @@ S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Usage](#usage)
-  - [Examples](#examples)
+  - [Examples - DDT Encoding](#examples---ddt-encoding)
     - [Encoding the DDT of SKINNY-64](#encoding-the-ddt-of-skinny-64)
     - [Encoding the DDT of Ascon](#encoding-the-ddt-of-ascon)
     - [Encoding the DDT of PRESENT](#encoding-the-ddt-of-present)
@@ -17,7 +20,20 @@ S-box Analyzer is a tool for deriving the minimized MILP and SMT/SAT constraints
     - [Encoding the DDT of AES](#encoding-the-ddt-of-aes)
     - [Encoding the \*-DDT and \*-LAT](#encoding-the--ddt-and--lat)
     - [Encoding the DDT for CryptoSMT](#encoding-the-ddt-for-cryptosmt)
-  - [Paper](#paper)
+  - [Examples - Deriving and Encoding Deterministic Differential Propagation](#examples---deriving-and-encoding-deterministic-differential-propagation)
+  - [Examples - LAT Encoding](#examples---lat-encoding)
+    - [Encoding the LAT of SKINNY-64](#encoding-the-lat-of-skinny-64)
+    - [Encoding the LAT of Ascon](#encoding-the-lat-of-ascon)
+  - [Examples - Deriving and Encoding Deterministic Linear Propagation](#examples---deriving-and-encoding-deterministic-linear-propagation)
+  - [Examples - MPT Encoding](#examples---mpt-encoding)
+    - [Encoding the MPT of PRESENT](#encoding-the-mpt-of-present)
+    - [Encoding the MPT of Ascon](#encoding-the-mpt-of-ascon)
+  - [Examples - DLCT Encoding](#examples---dlct-encoding)
+    - [Encoding the \*-DLCT of KNOT](#encoding-the--dlct-of-knot)
+    - [Encoding the \*-DLCT of Midori](#encoding-the--dlct-of-midori)
+    - [Verification of Hadipour et al.'s Theorem](#verification-of-hadipour-et-als-theorem)
+  - [Citation](#citation)
+  - [Papers](#papers)
   - [Road Map](#road-map)
   - [License](#license)
 
@@ -128,7 +144,7 @@ Interpretation of the outputs:
 - `Output:	b0||b1||b2||b3; b0: msb`: The binary vector $b = b_{0}||b_{1}||b_{2}||b_{3}$ encodes the output difference where $b_{0}$ is the most significant bit of $b$.
 - `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, where $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$. The additional variables $p_{0}, p_{1}$, and $p_{2}$ are binary decision variables to encode the probability of differential transitions.
 
-## Examples
+## Examples - DDT Encoding
 
 ### Encoding the DDT of SKINNY-64
 
@@ -309,10 +325,233 @@ Weight: p0 + p1 + p2
 sage: print(cnf)
 
 '(~a2 | p1) & (~b2 | p1) & (~p0 | p1) & (~p1 | p2) & (a1 | ~a2 | a3 | ~p0) & (a1 | ~a3 | b2 | p0) & (a2 | ~a3 | b2 | p0) & (~a1 | a3 | b2 | p0) & (a2 | b1 | ~b3 | p0) & (a2 | ~b1 | b3 | p0) & (~a0 | b2 | b3 | p0) & (a1 | a2 | a3 | ~b1 | ~b3) & (a0 | ~a2 | a3 | ~b2 | b3) & (~a1 | ~a2 | ~a3 | b2 | b3) & (~a1 | ~a3 | b0 | b1 | p0) & (a0 | a1 | ~b1 | ~b3 | p0) & (a1 | ~a3 | ~b1 | ~b3 | p0) & (~a1 | a3 | ~b1 | ~b3 | p0) & (~a0 | a3 | b1 | ~b3 | p0) & (~a1 | ~b0 | b1 | ~b3 | p0) & (a1 | ~a3 | ~b0 | b3 | p0) & (~a3 | ~b0 | ~b1 | b3 | p0) & (a0 | a1 | a2 | a3 | ~p2) & (b0 | b1 | b2 | b3 | ~p2) & (~a1 | ~a2 | ~b0 | b1 | b2 | ~b3) & (~a2 | a3 | b0 | ~b1 | b2 | ~p0) & (~a2 | ~a3 | b0 | b2 | ~b3 | ~p0) & (~a0 | a1 | ~a3 | ~b2 | b3 | ~p0) & (a0 | a3 | ~b0 | b1 | b3 | p0) & (a1 | a2 | a3 | b1 | b3 | ~p2) & (a0 | a3 | ~b0 | b1 | b2 | ~b3 | ~p0) & (~a0 | a1 | a2 | ~a3 | b0 | b3 | ~p0) & (a0 | a1 | ~b0 | ~b1 | b2 | b3 | ~p0) & (~a1 | ~a3 | b1 | b3 | ~p0 | ~p1 | ~p2) & (~a0 | ~a2 | b0 | ~b2 | p0 | ~p1 | ~p2) & (~a0 | ~a1 | a3 | ~b0 | b1 | ~b2 | ~p1 | ~p2) & (~a0 | a1 | ~a2 | ~b0 | ~b1 | b3 | ~p1 | ~p2) & (a0 | a2 | ~a3 | b1 | ~b2 | ~p0 | ~p1 | ~p2) & (a2 | b0 | ~b1 | ~b2 | ~b3 | ~p0 | ~p1 | ~p2) & (a0 | ~a1 | a2 | ~b2 | b3 | ~p0 | ~p1 | ~p2) & (a0 | ~a1 | ~a2 | ~a3 | ~b2 | p0 | ~p1 | ~p2) & (a0 | a1 | ~a2 | b1 | ~b2 | p0 | ~p1 | ~p2) & (~a0 | ~a1 | a2 | a3 | b0 | b1 | ~p0 | ~p1 | ~p2) & (~a2 | a3 | b1 | ~b2 | ~p0) & (a1 | ~a2 | ~b2 | b3 | ~p0) & (~a1 | ~a3 | ~b1 | ~b3 | ~p0) & (a2 | ~b0 | ~b1 | ~b3) & (~a0 | ~a3 | b0 | b1 | b2) & (a1 | ~a2 | b1 | ~b2 | ~p0) & (~a0 | ~a1 | b0 | b2 | b3) & (~a2 | a3 | ~b2 | b3 | ~p0) & (a0 | a1 | a2 | ~b0 | ~b3) & (a0 | a2 | a3 | ~b0 | ~b1) & (~a0 | ~a1 | ~a3 | b2)'
-
 ```
 
-## Paper
+## Examples - Deriving and Encoding Deterministic Differential Propagation
+
+The following example shows how to derive and encode the deterministic differential propagation of the Ascon S-box.
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Ascon as sb
+sage: sa = SboxAnalyzer(sb)
+sage: ddp = sa.encode_deterministic_differential_behavior()
+sage: cp = sa.generate_cp_constraints(ddp)
+Input:	a0||a1||a2||a3||a4; a0: msb
+Output:	b0||b1||b2||b3||b4; b0: msb
+sage: print(cp)
+
+if (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = 0 /\ b1 = 0 /\ b2 = 0 /\ b3 = 0 /\ b4 = 0)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 1) then (b0 = -1 /\ b1 = 1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == 0) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = 0 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = 1 /\ b4 = 0)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 1) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 1) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = 1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == -1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 0)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == -1 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = 1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 0 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = 1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = 0 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 1 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = 0 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 1 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = 1 /\ b2 = -1 /\ b3 = 0 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = 1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 1) then (b0 = 1 /\ b1 = 0 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == 1) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 0)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = 0 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 0) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 0)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == -1 /\ a3 == 0 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == -1 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 0)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 1 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = 1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 1 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = 0 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == -1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == -1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == -1 /\ a1 == 1 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == -1 /\ a1 == 1 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+else (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+endif
+```
+
+## Examples - LAT Encoding
+
+Here, we show how to encode the (squared) LAT of S-boxes. 
+
+### Encoding the LAT of SKINNY-64
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import SKINNY_4 as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_linear_constraints()
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.01 seconds
+Number of constraints: 29
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+Weight: 4.0000 p0 + 2.0000 p1
+```
+Note that `sa.minimized_linear_constraints()` encode the squared LAT scaled by correlation. 
+
+### Encoding the LAT of Ascon
+
+```python
+sage: from sage.crypto.sboxes import Ascon as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_linear_constraints()
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.04 seconds
+Number of constraints: 96
+Input:	a0||a1||a2||a3||a4; a0: msb
+Output:	b0||b1||b2||b3||b4; b0: msb
+Weight: 4.0000 p0 + 2.0000 p1
+```
+
+## Examples - Deriving and Encoding Deterministic Linear Propagation
+
+The following example shows how to derive and encode the deterministic linear propagation through the inverse of the Ascon S-box.
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Ascon as sb
+sage: sa = SboxAnalyzer(sb.inverse())
+sage: dlp = sa.encode_deterministic_linear_behavior()
+sage: cp = sa.generate_cp_constraints(dlp)
+Input:	a0||a1||a2||a3||a4; a0: msb
+Output:	b0||b1||b2||b3||b4; b0: msb
+sage: print(cp)
+if (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = 0 /\ b1 = 0 /\ b2 = 0 /\ b3 = 0 /\ b4 = 0)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = 1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == -1) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = 1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 0 /\ a3 == 1 /\ a4 == -1) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = 0 /\ b1 = 1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == -1) then (b0 = -1 /\ b1 = -1 /\ b2 = 1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 0) then (b0 = -1 /\ b1 = 0 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == 1) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == 1 /\ a3 == 1 /\ a4 == -1) then (b0 = -1 /\ b1 = -1 /\ b2 = 0 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 0 /\ a2 == -1 /\ a3 == 0 /\ a4 == 0) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == 1 /\ a3 == 0 /\ a4 == 0) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 0 /\ a1 == 1 /\ a2 == -1 /\ a3 == 0 /\ a4 == 0) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 0) then (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = 1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 0 /\ a3 == 0 /\ a4 == 1) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = 0 /\ b4 = 1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == 1 /\ a3 == 0 /\ a4 == 1) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 0 /\ a2 == -1 /\ a3 == 0 /\ a4 == 1) then (b0 = 1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 0 /\ a3 == 0 /\ a4 == 1) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = 0)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == 1 /\ a3 == 0 /\ a4 == 1) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+elseif (a0 == 1 /\ a1 == 1 /\ a2 == -1 /\ a3 == 0 /\ a4 == 1) then (b0 = 0 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+else (b0 = -1 /\ b1 = -1 /\ b2 = -1 /\ b3 = -1 /\ b4 = -1)
+endif
+```
+
+## Examples - MPT Encoding
+
+Here, we show how to encode the propagation of monomial trails through S-boxes.
+
+### Encoding the MPT of PRESENT
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import PRESENT as sb
+sage: sa = SboxAnalyzer(sb)
+sage: mpt = sa.monomial_prediction_table(); mpt
+[[1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+ [0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+ [0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+ [0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0],
+ [0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+ [0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+ [0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0],
+ [0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0],
+ [0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+ [0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+ [0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1],
+ [0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1],
+ [0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+ [0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0],
+ [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1],
+ [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]]
+sage: cnf, milp = sa.minimized_integral_constraints()
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.00 seconds
+Number of constraints: 41
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+```
+
+### Encoding the MPT of Ascon
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Ascon as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_integral_constraints()
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.01 seconds
+Number of constraints: 97
+Input:	a0||a1||a2||a3||a4; a0: msb
+Output:	b0||b1||b2||b3||b4; b0: msb
+```
+
+## Examples - DLCT Encoding
+
+Here, we show how to encode the DLCT of S-boxes. 
+
+### Encoding the *-DLCT of KNOT
+
+```python 
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import KNOT as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_differential_linear_constraints(subtable='star')
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.00 seconds
+Number of constraints: 34
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+```
+
+### Encoding the *-DLCT of Midori
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Midori_Sb0 as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp = sa.minimized_differential_linear_constraints(subtable='star')
+
+Simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.00 seconds
+Number of constraints: 43
+Input:	a0||a1||a2||a3; a0: msb
+Output:	b0||b1||b2||b3; b0: msb
+```
+
+### Verification of Hadipour et al.'s Theorem
+
+The following code verifies the Hadipour et al.'s theorem, (Proposition 2 in [2024/255](https://ia.cr/2024/255)) for the S-box of Ascon.
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import Ascon as sb
+sage: sa = SboxAnalyzer(sb)
+sage: check = sa.check_hadipour_theorem(); check
+The Hadipour et al.'s theorem is satisfied.
+True
+```
+
+## Citation
 
 If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our paper:
 
@@ -332,15 +571,26 @@ If you use our tools in a project resulting in an academic publication, please a
 }
 ```
 
+## Papers
+
+Sbox Analyzer has been used in the following papers:
+
+- [Throwing Boomerangs into Feistel Structures: Application to CLEFIA, WARP, LBlock, LBlock-s and TWINE](https://ia.cr/2022/745)
+- [Integral Cryptanalysis of WARP based on Monomial Prediction](https://ia.cr/2022/729)
+- [Improved Search for Integral, Impossible-Differential and Zero-Correlation Attacks: Application to Ascon, ForkSKINNY, SKINNY, MANTIS, PRESENT and QARMAv2](https://ia.cr/2023/1701)
+- [Revisiting Differential-Linear Attacks via a Boomerang Perspective With Application to AES, Ascon, CLEFIA, SKINNY, PRESENT, KNOT, TWINE, WARP, LBlock, Simeck, and SERPENT](https://ia.cr/2024/255)
+- [Orthros: A Low-Latency PRF](https://ia.cr/2021/390)
+
 ## Road Map
 
  - [x] Encoding DDT
  - [x] Encoding LAT
- - [ ] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
+ - [x] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
+ - [x] Adding [DLCT, UDLCT, LDLCT and Hadipour et al's theorem](https://eprint.iacr.org/2024/255)
  - [ ] Integrating the tool into the [SageMath](https://www.sagemath.org/)
  - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 
-The LAT and the MPT encoders are not implemented yet. However, they will follow the same template as the DDT encoder and can be easily implemented. I will include them as soon as I get a chance. Any contributions or comments regarding the development of the tool are warmly welcome. 
+Any contributions or comments regarding the development of the tool are warmly welcome. 
 
 ## License
 
