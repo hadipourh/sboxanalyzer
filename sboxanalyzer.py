@@ -997,7 +997,7 @@ class SboxAnalyzer(SBox):
         last_condition = " /\\ ".join([f"b{i} = -1" for i in range(n)])
         constraints = ""
         for i, (input, output) in enumerate(propagation_dictionary.items()):
-            input_str = [f"{a[i]} == {input[i]}" for i in range(m)]
+            input_str = [f"{a[i]} = {input[i]}" for i in range(m)]
             input_str = " /\\ ".join(input_str)
             output_str = [f"{b[i]} = {output[i]}" for i in range(n)]
             output_str = " /\\ ".join(output_str)
