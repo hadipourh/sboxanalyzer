@@ -244,7 +244,8 @@ class SboxAnalyzer(SBox):
     # Interface to ESPRESSO
     ###############################################################################################################
 
-    def _write_truth_table(self, filename, boolean_function, input_output_variables=None):
+    @staticmethod
+    def _write_truth_table(filename, boolean_function, input_output_variables=None):
         """
         Write the Boolean function encoding the DDT of S-box into 
         a text file according to the input format of
@@ -269,7 +270,8 @@ class SboxAnalyzer(SBox):
             fileobj.write(file_contents)
             fileobj.write(".e\n")
     
-    def simplify_by_espresso(self, input_file, output_file, mode):
+    @staticmethod
+    def simplify_by_espresso(input_file, output_file, mode):
         """
         Simplify the CNF formula using the ESPRESSO
         """
@@ -278,7 +280,7 @@ class SboxAnalyzer(SBox):
             raise ValueError("Invalid value for mode! mode must be in [0, 1, 2, 3, 4, 5, 6, 7].") 
 
                                                                         # If reverse = 1 choose ON-SET and if reverse = 0 choose OFF-SET
-        self.espresso_options = [[],                                    # 0 ON-SET :   Derived constraints exclude point p such that f(p) = 1
+        espresso_options =  [[],                                        # 0 ON-SET :   Derived constraints exclude point p such that f(p) = 1
                             ["-Dexact", "-estrong", "-s", "-t", "-or"], # 1 OFF-SET:*  Derived constraints exclude point p such that f(p) = 0
                             ["-Dexact", "-estrong", "-s", "-t", "-of"], # 2 ON-SET :   Derived constraints exclude point p such that f(p) = 1 *
                             ["-Dexact", "-efast", "-s", "-t", "-or"],   # 3 OFF-SET:*  Derived constraints exclude point p such that f(p) = 0
@@ -287,15 +289,16 @@ class SboxAnalyzer(SBox):
         # -epos: complements the boolean function
         # Therefore, instead of reverse=1 we can use -epos
         # If so, we should make sure that reverse=0 in this case
-        self.espresso_options += [["-Dexact", "-estrong", "-epos", "-s", "-t", "-of"],   # 5 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
+        espresso_options += [["-Dexact", "-estrong", "-epos", "-s", "-t", "-of"],   # 5 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
                             ["-Dmany", "-estrong", "-epos", "-s", "-t", "-of"],    # 6 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
                             ["-Dmany", "-efast", "-epos", "-s", "-t", "-of"]]      # 7 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
 
         # Best options (not always), in terms of optimality: 5, then 6, then 7, then 1 (6 is good and fast enough in cases 5 is too slow)
         with open(output_file, 'w') as fileobj:
-            subprocess.call([ESPRESO_BIN_PATH, *self.espresso_options[mode], input_file], stdout=fileobj)
+            subprocess.call([ESPRESO_BIN_PATH, *espresso_options[mode], input_file], stdout=fileobj)
         
-    def _parse_the_output_of_espresso(self, filename, alphabet):
+    @staticmethod
+    def _parse_the_output_of_espresso(filename, alphabet):
         """
         Parse the output of ESPRESSO
         """
@@ -335,6 +338,55 @@ class SboxAnalyzer(SBox):
             milp_constraints.append("{}".format(lp_constraint))
         sat_clauses = ' & '.join(sat_clauses)
         return (sat_clauses, milp_constraints)
+
+    ###############################################################################################################
+    ###############################################################################################################
+    ###############################################################################################################
+    #  ____                 _                              _____                     _    _                                        _   ____         _             __   ____   _                             __     __           _                    
+    # | __ )   ___    ___  | |  ___   __ _  _ __    __ _  |  ___|_   _  _ __    ___ | |_ (_)  ___   _ __   ___    __ _  _ __    __| | / ___|   ___ | |_    ___   / _| | __ ) (_) _ __    __ _  _ __  _   _  \ \   / /___   ___ | |_  ___   _ __  ___ 
+    # |  _ \  / _ \  / _ \ | | / _ \ / _` || '_ \  / _` | | |_  | | | || '_ \  / __|| __|| | / _ \ | '_ \ / __|  / _` || '_ \  / _` | \___ \  / _ \| __|  / _ \ | |_  |  _ \ | || '_ \  / _` || '__|| | | |  \ \ / // _ \ / __|| __|/ _ \ | '__|/ __|
+    # | |_) || (_) || (_) || ||  __/| (_| || | | || (_| | |  _| | |_| || | | || (__ | |_ | || (_) || | | |\__ \ | (_| || | | || (_| |  ___) ||  __/| |_  | (_) ||  _| | |_) || || | | || (_| || |   | |_| |   \ V /|  __/| (__ | |_| (_) || |   \__ \
+    # |____/  \___/  \___/ |_| \___| \__,_||_| |_| \__, | |_|    \__,_||_| |_| \___| \__||_| \___/ |_| |_||___/  \__,_||_| |_| \__,_| |____/  \___| \__|  \___/ |_|   |____/ |_||_| |_| \__,_||_|    \__, |    \_/  \___| \___| \__|\___/ |_|   |___/
+    #                                              |___/                                                                                                                                             |___/                                           
+    # Encoding Booleann functions and set of binary vectors into MILP/SAT constraints
+
+    @staticmethod
+    def encode_boolean_function(truth_table, reverse=1, input_variables=None, mode=6):
+        """
+        Encode the Boolean function into MILP/SAT constraints
+        """
+        
+        if any([i not in {0, 1} for i in truth_table]):
+            raise ValueError("Each element of the truth table must be either 0 or 1.")
+        
+        log2_length = int(log(len(truth_table), 2))
+        if len(truth_table) != 2**log2_length:
+            raise ValueError("The length of the truth table must be a power of 2.")
+        
+        boolean_function = dict()
+        for i in range(len(truth_table)):
+            key = tuple(map(int, list(bin(i)[2:].zfill(log2_length))))
+            boolean_function[key] = truth_table[i]
+        input_file = os.path.join(os.getcwd(), 'tt_' + hex(randint(0, 65536))[2:] + '.txt')
+        output_file = os.path.join(os.getcwd(), 'stt_' + hex(randint(0, 65536))[2:] + '.txt')
+        SboxAnalyzer._write_truth_table(filename=input_file, 
+                                        boolean_function=boolean_function, 
+                                        input_output_variables=input_variables)
+        SboxAnalyzer.simplify_by_espresso(input_file=input_file, 
+                                          output_file=output_file, 
+                                          mode=mode)
+        if input_variables is None:
+            input_variables = [f"x{i}" for i in range(log2_length)] + ["y"]
+        sat_clauses, milp_constraints = SboxAnalyzer._parse_the_output_of_espresso(filename=output_file,
+                                                                                   alphabet=input_variables)
+        os.remove(input_file)
+        os.remove(output_file)
+        return (sat_clauses, milp_constraints)
+    
+
+    def encode_set_of_binary_vectors(self, set_of_binary_vectors, reverse=1):
+        # To do ...
+        pass
         
     ###############################################################################################################
     ###############################################################################################################
@@ -1473,4 +1525,16 @@ if __name__ == "__main__":
     #     fileobj.write("\n".join(milp))
     #     fileobj.write("\nend")
     # pretty_print(milp)
+
+    # # example of encoding a Boolean function
+    reset()
+    print("\nEncoding a Boolean function")
+    truth_table = [0, 0, 0, 1, 1, 1, 1, 1]
+    input_variables = ["a0", "a1", "b"]
+    from sboxanalyzer import SboxAnalyzer as sa
+    cnf, milp = sa.encode_boolean_function(truth_table=truth_table, input_variables=input_variables)
+    print(cnf)
+    print(milp)
+
+
     
