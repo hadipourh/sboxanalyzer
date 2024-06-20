@@ -351,39 +351,52 @@ class SboxAnalyzer(SBox):
     # Encoding Booleann functions and set of binary vectors into MILP/SAT constraints
 
     @staticmethod
-    def encode_boolean_function(truth_table, reverse=1, input_variables=None, mode=6):
+    def encode_boolean_function(truth_table, input_variables=None, mode=6):
         """
         Encode the Boolean function into MILP/SAT constraints
         """
-        
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
         if any([i not in {0, 1} for i in truth_table]):
             raise ValueError("Each element of the truth table must be either 0 or 1.")
         
-        log2_length = int(log(len(truth_table), 2))
-        if len(truth_table) != 2**log2_length:
-            raise ValueError("The length of the truth table must be a power of 2.")
-        
+        log2_length = log(len(truth_table), 2)
+        if log2_length != int(log2_length):
+            raise ValueError("The length of the truth table must be a power of 2.") 
+              
         boolean_function = dict()
         for i in range(len(truth_table)):
             key = tuple(map(int, list(bin(i)[2:].zfill(log2_length))))
-            boolean_function[key] = truth_table[i]
+            boolean_function[key] = truth_table[i] ^ reverse
         input_file = os.path.join(os.getcwd(), 'tt_' + hex(randint(0, 65536))[2:] + '.txt')
         output_file = os.path.join(os.getcwd(), 'stt_' + hex(randint(0, 65536))[2:] + '.txt')
+        if input_variables is None:
+            input_variables = [f"x{i}" for i in range(log2_length)]
+        else:            
+            if len(input_variables) != log2_length:
+                raise ValueError("The length of input variables must be equal to the number of input variables.")
         SboxAnalyzer._write_truth_table(filename=input_file, 
                                         boolean_function=boolean_function, 
-                                        input_output_variables=input_variables)
+                                        input_output_variables=input_variables)        
+        print("Generateing and simplifying the MILP/SAT constraints ...")
+        starting_time = time.time()
         SboxAnalyzer.simplify_by_espresso(input_file=input_file, 
                                           output_file=output_file, 
                                           mode=mode)
-        if input_variables is None:
-            input_variables = [f"x{i}" for i in range(log2_length)] + ["y"]
+        elapsed_time = time.time() - starting_time
+        print("Time used to simplify the constraints: {:.2f} seconds".format(elapsed_time))        
         sat_clauses, milp_constraints = SboxAnalyzer._parse_the_output_of_espresso(filename=output_file,
                                                                                    alphabet=input_variables)
+        print("Number of constraints: {}".format(len(milp_constraints)))
+        print("Variables: {}; msb: {}".format("||".join(input_variables), input_variables[0]))
         os.remove(input_file)
         os.remove(output_file)
         return (sat_clauses, milp_constraints)
     
-
     def encode_set_of_binary_vectors(self, set_of_binary_vectors, reverse=1):
         # To do ...
         pass
@@ -1529,12 +1542,18 @@ if __name__ == "__main__":
     # # example of encoding a Boolean function
     reset()
     print("\nEncoding a Boolean function")
-    truth_table = [0, 0, 0, 1, 1, 1, 1, 1]
-    input_variables = ["a0", "a1", "b"]
+    truth_table = [0, 0, 0, 0, 0, 0, 1, 1]
+    input_variables = ["a0", "a1", "a2"]
     from sboxanalyzer import SboxAnalyzer as sa
-    cnf, milp = sa.encode_boolean_function(truth_table=truth_table, input_variables=input_variables)
-    print(cnf)
-    print(milp)
+    cnf, milp = sa.encode_boolean_function(truth_table=truth_table, input_variables=input_variables, mode=2)
+    with open("milp.lp", "w") as fileobj:
+        fileobj.write("\nsubject to\n")
+        fileobj.write("\n".join(milp))
+        fileobj.write("\nbin\n")
+        for var in input_variables:
+            fileobj.write(f"{var}\n")
+        fileobj.write("end")
+    pretty_print(milp)
 
 
     
