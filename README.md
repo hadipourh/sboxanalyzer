@@ -579,8 +579,8 @@ Sbox Analyzer has been used in the following papers:
 - [Integral Cryptanalysis of WARP based on Monomial Prediction](https://ia.cr/2022/729)
 - [Improved Search for Integral, Impossible-Differential and Zero-Correlation Attacks: Application to Ascon, ForkSKINNY, SKINNY, MANTIS, PRESENT and QARMAv2](https://ia.cr/2023/1701)
 - [Revisiting Differential-Linear Attacks via a Boomerang Perspective With Application to AES, Ascon, CLEFIA, SKINNY, PRESENT, KNOT, TWINE, WARP, LBlock, Simeck, and SERPENT](https://ia.cr/2024/255)
-- [Orthros: A Low-Latency PRF](https://ia.cr/2021/390)
-
+- [Gleeok: A Family of Low-Latency PRFs andits Applications to Authenticated Encryption](https://tches.iacr.org/index.php/TCHES/article/view/11439/10944)
+  
 ## Road Map
 
  - [x] Encoding DDT
