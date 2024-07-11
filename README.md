@@ -594,4 +594,4 @@ Any contributions or comments regarding the development of the tool are warmly w
 
 ## License
 
-S-box Analyszer is released under the [MIT license](LICENSE.txt).
+S-box Analyszer is released under the [MIT license](LICENSE).
