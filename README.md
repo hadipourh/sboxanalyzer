@@ -562,7 +562,7 @@ If you use our tools in a project resulting in an academic publication, please a
                Maria Eichlseder},
   title     = {Throwing Boomerangs into Feistel Structures Application to CLEFIA,
                WARP, LBlock, LBlock-s and {TWINE}},
-  journal   = {{IACR} Trans. Symmetric Cryptol.},
+  journal   = {IACR Trans. Symmetric Cryptol.},
   volume    = {2022},
   number    = {3},
   pages     = {271--302},
