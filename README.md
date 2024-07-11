@@ -555,7 +555,7 @@ True
 
 If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our paper:
 
-```bib
+```
 @article{DBLP:journals/tosc/HadipourNE22,
   author    = {Hosein Hadipour and
                Marcel Nageler and
