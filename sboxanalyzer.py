@@ -156,9 +156,6 @@ class SboxAnalyzer(SBox):
             os.makedirs(os.path.join(os.getcwd(), 'tmp'))
         self.truth_table_filename = os.path.join(os.getcwd(), 'tmp', 'tt_' + str(SboxAnalyzer.sbox_counter) + '.txt')
         self.simplified_truth_table_filename = os.path.join(os.getcwd(), 'tmp', 'stt_' + str(SboxAnalyzer.sbox_counter) + '.txt')
-        self.variables_mapping = "Input:\t{}; a0: msb".format("||".join([f"a{i}" for i in range(self.input_size())]))
-        self.variables_mapping += "\nOutput:\t{}; b0: msb".format("||".join([f"b{i}" for i in range(self.output_size())]))
-
         # A flag to check if the data required for differential analysis are present in memory
         self._data_required_for_differential_analysis = None
         # A flag to check if the data required for linear analysis are present in memory    
@@ -170,6 +167,9 @@ class SboxAnalyzer(SBox):
 
         # define a dictionalry to encode deterministic behavior
         self.unknown, self.zero, self.one = -1, 0, 1
+        self.zero_binary = [0, 0]
+        self.one_binary = [0, 1]
+        self.unknown_binary = [1, 0]
         self.deterministic_mask = {self.zero: {0}, self.one:{1}, self.unknown:{0, 1}}
     
     @staticmethod
@@ -397,9 +397,55 @@ class SboxAnalyzer(SBox):
         os.remove(output_file)
         return (sat_clauses, milp_constraints)
     
-    def encode_set_of_binary_vectors(self, set_of_binary_vectors, reverse=1):
-        # To do ...
-        pass
+    @staticmethod
+    def encode_set_of_binary_vectors(set_of_binary_vectors, input_variables=None, mode=6):
+        """
+        Encode the set of binary vectors into MILP/SAT constraints
+        """
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
+        set_of_binary_vectors = list(set(set_of_binary_vectors))
+        # check if each element of the set has the same length
+        if len(set_of_binary_vectors) == 0:
+            raise ValueError("The set of binary vectors is empty.")
+        num_of_elements = len(set_of_binary_vectors)
+        num_of_bits = len(set_of_binary_vectors[0])
+        if not all([num_of_bits == len(v) for v in set_of_binary_vectors]):
+            raise ValueError("All elements of the set must have the same length.")
+        
+        boolean_function = dict()
+        for v in range(2**num_of_bits):
+            key = tuple(map(int, list(bin(v)[2:].zfill(num_of_bits))))
+            boolean_function[key] = int(key in set_of_binary_vectors) ^ reverse
+        
+        input_file = os.path.join(os.getcwd(), 'tt_' + hex(randint(0, 65536))[2:] + '.txt')
+        output_file = os.path.join(os.getcwd(), 'stt_' + hex(randint(0, 65536))[2:] + '.txt')
+        if input_variables is None:
+            input_variables = [f"x{i}" for i in range(num_of_bits)]
+        else:
+            if len(input_variables) != num_of_bits:
+                raise ValueError("The length of input variables must be equal to the length of the bit vectors.")
+        SboxAnalyzer._write_truth_table(filename=input_file, 
+                                        boolean_function=boolean_function, 
+                                        input_output_variables=input_variables)
+        print("Generateing and simplifying the MILP/SAT constraints ...")
+        starting_time = time.time()
+        SboxAnalyzer.simplify_by_espresso(input_file=input_file, 
+                                          output_file=output_file, 
+                                          mode=mode)   
+        elapsed_time = time.time() - starting_time
+        print("Time used to simplify the constraints: {:.2f} seconds".format(elapsed_time))
+        sat_clauses, milp_constraints = SboxAnalyzer._parse_the_output_of_espresso(filename=output_file,
+                                                                                    alphabet=input_variables)
+        print("Number of constraints: {}".format(len(milp_constraints)))
+        print("Variables: {}; msb: {}".format("||".join(input_variables), input_variables[0]))
+        os.remove(input_file)
+        os.remove(output_file)
+        return (sat_clauses, milp_constraints)
         
     ###############################################################################################################
     ###############################################################################################################
@@ -440,7 +486,7 @@ class SboxAnalyzer(SBox):
 
     def get_star_ddt(self):
         """
-        Generate the start DDT (or 0/1 DDT)
+        Generate the *-DDT (or 0/1 DDT)
         Star DDT is a 2^m*2^n binary array describing the possibility of differential transitions through the S-box
         """
         
@@ -455,7 +501,7 @@ class SboxAnalyzer(SBox):
                     star_ddt[dx][dy] = 0 #reverse
         return star_ddt
 
-    def _star_ddt_to_boolean_function(self, reverse=1):
+    def _star_ddt_to_boolean_function(self, reverse=1, inverse=0):
         """
         Convert the star-DDT into a Boolean function
         """
@@ -467,7 +513,7 @@ class SboxAnalyzer(SBox):
             for dy in range(2**self.output_size()):
                 y = tuple(map(int, list(bin(dy)[2:].zfill(self.output_size()))))
                 key = x + y
-                boolean_func[key] = self.star_ddt[dx][dy] ^ reverse                
+                boolean_func[key] = self.star_ddt[dx][dy] ^ reverse ^ inverse         
         return boolean_func
 
     def _ddt_to_boolean_function(self, reverse=1):
@@ -575,7 +621,7 @@ class SboxAnalyzer(SBox):
                     boolean_function[key] = reverse
         return boolean_function
 
-    def minimized_diff_constraints(self, mode=6, subtable=None, cryptosmt_compatible=False):
+    def minimized_diff_constraints(self, mode=6, subtable=None, cryptosmt_compatible=False, input_variables=None, output_variables=None):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
@@ -585,7 +631,7 @@ class SboxAnalyzer(SBox):
         
         if self._data_required_for_differential_analysis is None:
             self._compute_data_for_differential_analysis()
-        valid_values_for_subtable = ["star", None] + list(self._diff_spectrum)
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(self._diff_spectrum)
         if subtable not in valid_values_for_subtable:
             raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
     
@@ -597,15 +643,24 @@ class SboxAnalyzer(SBox):
         else:
             reverse = 1
         
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        else:            
+            if len(input_variables) != self.input_size():
+                raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        else:
+            if len(output_variables) != self.output_size():
+                raise ValueError("The length of output variables must be equal to the number of output variables.")
+        input_output_variables = input_variables + output_variables
         self.diff_objective = ""
         if subtable == "star":
             boolean_function = self._star_ddt_to_boolean_function(reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
+        elif subtable == "star_inverse":
+            boolean_function = self._star_ddt_to_boolean_function(reverse=reverse, inverse=1)
         elif subtable in self._diff_spectrum:
             boolean_function = self._pddt_to_booleanfunction(p=subtable, reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
         elif cryptosmt_compatible:
             boolean_function = self._ddt_to_cryptosmt_compatible_boolean_function(reverse=reverse)
             if self._max_diff_weights == 0:
@@ -613,9 +668,7 @@ class SboxAnalyzer(SBox):
             else:
                 self.diff_objective = ["p{:d}".format(i) for i in range(self._max_diff_weights)]
             self.diff_objective = "\nWeight: {}".format(" + ".join(self.diff_objective))
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())] + \
-                                     [f"p{i}" for i in range(self._max_diff_weights)]
+            input_output_variables.extend([f"p{i}" for i in range(self._max_diff_weights)])
         else:
             boolean_function = self._ddt_to_boolean_function(reverse=reverse)
             if self._max_diff_weights == 0:
@@ -623,9 +676,7 @@ class SboxAnalyzer(SBox):
             else:
                 self.diff_objective = ["{:0.04f} p{:d}".format(self._diff_weights[i], i) for i in range(self._len_diff_spectrum)]
             self.diff_objective = "\nWeight: {}".format(" + ".join(self.diff_objective))
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())] + \
-                                     [f"p{i}" for i in range(self._len_diff_spectrum)]
+            input_output_variables.extend([f"p{i}" for i in range(self._len_diff_spectrum)])
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
                                 input_output_variables=input_output_variables)
@@ -638,7 +689,9 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
-        print("{}".format(self.variables_mapping + self.diff_objective))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.diff_objective))
         return sat_clauses, milp_constraints
 
     ###############################################################################################################
@@ -690,7 +743,7 @@ class SboxAnalyzer(SBox):
 
     def get_star_lat(self):
         """
-        Generate the start LAT (or 0/1 LAT)
+        Generate the *-LAT (or 0/1 LAT)
         Star LAT is a 2^m*2^n binary array describing the possibility of linear transitions through the S-box
         """
         
@@ -784,7 +837,7 @@ class SboxAnalyzer(SBox):
                     boolean_function[key] = reverse
         return boolean_function
 
-    def minimized_linear_constraints(self, mode=6, subtable=None):
+    def minimized_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
@@ -802,16 +855,23 @@ class SboxAnalyzer(SBox):
             reverse = 0
         else:
             reverse = 1
-        
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        else:
+            if len(input_variables) != self.input_size():
+                raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        else:
+            if len(output_variables) != self.output_size():
+                raise ValueError("The length of output variables must be equal to the number of output variables.")        
+        input_output_variables = input_variables + output_variables
         self.linear_objective = ""
         if subtable == "star":
             boolean_function = self._star_lat_to_boolean_function(reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
         elif subtable in self._squared_correlation_spectrum:
             boolean_function = self._psqlat_to_booleanfunction(p=subtable, reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
         else:
             boolean_function = self._sqlat_to_boolean_function(reverse=reverse)
             if self._len_linear_weights != []:                
@@ -819,9 +879,7 @@ class SboxAnalyzer(SBox):
             else:
                 self.linear_objective = "0"
             self.linear_objective = "\nWeight: {}".format(" + ".join(self.linear_objective))
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())] + \
-                                     [f"p{i}" for i in range(self._len_linear_weights)]
+            input_output_variables += [f"p{i}" for i in range(self._len_linear_weights)]
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
                                 input_output_variables=input_output_variables)
@@ -834,7 +892,9 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
-        print("{}".format(self.variables_mapping + self.linear_objective))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
         return sat_clauses, milp_constraints
     
     ###############################################################################################################
@@ -874,7 +934,7 @@ class SboxAnalyzer(SBox):
         boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse
         return boolean_func
 
-    def minimized_integral_constraints(self, mode=6):
+    def minimized_integral_constraints(self, mode=6, input_variables=None, output_variables=None):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
@@ -890,9 +950,19 @@ class SboxAnalyzer(SBox):
         else:
             reverse = 1
         
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        else:
+            if len(input_variables) != self.input_size():
+                raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        else:
+            if len(output_variables) != self.output_size():
+                raise ValueError("The length of output variables must be equal to the number of output variables.")            
+        
         self.integral_objective = ""
-        input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                 [f"b{i}" for i in range(self.output_size())]
+        input_output_variables = input_variables + output_variables
         boolean_function = self._mpt_to_boolean_function(reverse=reverse)
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
@@ -906,7 +976,9 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
-        print("{}".format(self.variables_mapping + self.integral_objective))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.integral_objective))
         return sat_clauses, milp_constraints
     
     ###############################################################################################################
@@ -1046,7 +1118,7 @@ class SboxAnalyzer(SBox):
                 propagation_dictionary[truncated_output_mask] = truncated_input_mask
         return propagation_dictionary
     
-    def generate_cp_constraints(self, propagation_dictionary):
+    def generate_cp_constraints(self, propagation_dictionary, input_variables=None, output_variables=None):
         """
         Generates the constraints for the CP model
         """
@@ -1055,10 +1127,18 @@ class SboxAnalyzer(SBox):
         outputs = list(propagation_dictionary.values())
         m = len(inputs[0])
         n = len(outputs[0])
-        # a = [f"a{m - i - 1}" for i in range(m)]
-        # b = [f"b{n - i - 1}" for i in range(n)]        
-        a = [f"a{i}" for i in range(m)]
-        b = [f"b{i}" for i in range(n)]
+        if input_variables is None:
+            a = [f"a{i}" for i in range(m)]
+        else:            
+            if len(input_variables) != m:
+                raise ValueError(f"The size of input variables should be {m}")
+            a = input_variables
+        if output_variables is None:
+            b = [f"b{i}" for i in range(n)]
+        else:
+            if len(output_variables) != n:
+                raise ValueError(f"The size of output variables should be {n}")
+            b = output_variables
         last_condition = " /\\ ".join([f"b{i} = -1" for i in range(n)])
         constraints = ""
         for i, (input, output) in enumerate(propagation_dictionary.items()):
@@ -1071,8 +1151,242 @@ class SboxAnalyzer(SBox):
             else:
                 constraints += f"elseif ({input_str}) then ({output_str})\n"
         constraints += f"else ({last_condition})\nendif"
-        print(self.variables_mapping)
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print(variables_mapping)
         return constraints
+    
+    def minimized_determinisitc_diff_constraints(self, mode=6, input_variables=None, output_variables=None):
+        """
+        Generate and minimize the MILP/SAT constraints for the deterministic differential trails
+        """
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+        
+        sbox_input_size = self.input_size()
+        sbox_output_size = self.output_size()
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(2*self.input_size())]
+        elif len(input_variables) != 2*sbox_input_size:
+            raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(2*self.output_size())]
+        elif len(output_variables) != 2*sbox_output_size:
+            raise ValueError("The length of output variables must be equal to the number of output variables.")        
+        binary_variables = input_variables + output_variables
+        propagation_dictionary = self.encode_deterministic_differential_behavior()
+        informative_inputs = propagation_dictionary.keys()
+        boolean_function = dict()
+        function_size = 2*(sbox_input_size + sbox_output_size)
+        for input_vector in itertools.product([self.unknown, self.zero, self.one], repeat=sbox_input_size):
+            if input_vector in informative_inputs:
+                output_vector = propagation_dictionary[input_vector]
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            else:
+                output_vector = [self.unknown]*sbox_output_size
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            boolean_function[key] = 1
+        
+        if reverse == 1:
+            for input_vector in itertools.product([self.zero, self.one ], repeat=function_size):
+                boolean_function[input_vector] = boolean_function.get(input_vector, 0) ^ 1
+    
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=binary_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=binary_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))  
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping_binary = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping_binary += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping_binary))
+        return sat_clauses, milp_constraints
+    
+    def minimized_determinisitc_lin_constraints(self, mode=6, input_variables=None, output_variables=None):
+        """
+        Generate and minimize the MILP/SAT constraints for the deterministic linear trails
+        """
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1        
+
+        sbox_input_size = self.input_size()
+        sbox_output_size = self.output_size()
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(2*self.input_size())]
+        elif len(input_variables) != 2*sbox_input_size:
+            raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(2*self.output_size())]
+        elif len(output_variables) != 2*sbox_output_size:
+            raise ValueError("The length of output variables must be equal to the number of output variables.")
+        binary_variables = input_variables + output_variables
+        propagation_dictionary = self.encode_deterministic_linear_behavior()
+        informative_inputs = propagation_dictionary.keys()
+        boolean_function = dict()
+        function_size = 2*(sbox_input_size + sbox_output_size)
+        for input_vector in itertools.product([self.unknown, self.zero, self.one], repeat=sbox_input_size):
+            if input_vector in informative_inputs:
+                output_vector = propagation_dictionary[input_vector]
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            else:
+                output_vector = [self.unknown]*sbox_output_size
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            boolean_function[key] = 1
+        
+        if reverse == 1:
+            for input_vector in itertools.product([self.zero, self.one ], repeat=function_size):
+                boolean_function[input_vector] = boolean_function.get(input_vector, 0) ^ 1
+    
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=binary_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=binary_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping_binary = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping_binary += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping_binary))
+        return sat_clauses, milp_constraints
+
+    def minimized_determinisitc_integral_forward_constraints(self, mode=6):
+        """
+        Generate and minimize the MILP/SAT constraints for the deterministic integral trails
+        """
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
+        sbox_input_size = self.input_size()
+        sbox_output_size = self.output_size()
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(2*self.input_size())]
+        elif len(input_variables) != 2*sbox_input_size:
+            raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(2*self.output_size())]
+        elif len(output_variables) != 2*sbox_output_size:
+            raise ValueError("The length of output variables must be equal to the number of output variables.")
+        binary_variables = input_variables + output_variables
+        propagation_dictionary = self.encode_deterministic_integral_forward()
+        informative_inputs = propagation_dictionary.keys()
+        boolean_function = dict()
+        function_size = 2*(sbox_input_size + sbox_output_size)
+        for input_vector in itertools.product([self.unknown, self.zero, self.one], repeat=sbox_input_size):
+            if input_vector in informative_inputs:
+                output_vector = propagation_dictionary[input_vector]
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            else:
+                output_vector = [self.unknown]*sbox_output_size
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            boolean_function[key] = 1
+        
+        if reverse == 1:
+            for input_vector in itertools.product([self.zero, self.one ], repeat=function_size):
+                boolean_function[input_vector] = boolean_function.get(input_vector, 0) ^ 1
+    
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=binary_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=binary_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping_binary = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping_binary += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping_binary))
+        return sat_clauses, milp_constraints
+
+    def minimized_determinisitc_integral_backward_constraints(self, mode=6):
+        """
+        Generate and minimize the MILP/SAT constraints for the deterministic integral trails
+        """
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
+        sbox_input_size = self.input_size()
+        sbox_output_size = self.output_size()
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(2*self.input_size())]
+        elif len(input_variables) != 2*sbox_input_size:
+            raise ValueError("The length of input variables must be equal to the number of input variables.")
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(2*self.output_size())]
+        elif len(output_variables) != 2*sbox_output_size:
+            raise ValueError("The length of output variables must be equal to the number of output variables.")
+        binary_variables = input_variables + output_variables
+        propagation_dictionary = self.encode_deterministic_integral_backward()
+        informative_inputs = propagation_dictionary.keys()
+        boolean_function = dict()
+        function_size = 2*(sbox_input_size + sbox_output_size)
+        for input_vector in itertools.product([self.unknown, self.zero, self.one], repeat=sbox_output_size):
+            if input_vector in informative_inputs:
+                output_vector = propagation_dictionary[input_vector]
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            else:
+                output_vector = [self.unknown]*sbox_input_size
+                key = input_vector + tuple(output_vector)
+                key = tuple(flatten([self.unknown_binary if x == self.unknown else self.zero_binary if x == self.zero else self.one_binary for x in key]))
+            boolean_function[key] = 1
+        
+        if reverse == 1:
+            for input_vector in itertools.product([self.zero, self.one ], repeat=function_size):
+                boolean_function[input_vector] = boolean_function.get(input_vector, 0) ^ 1
+    
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=binary_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=binary_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping_binary = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping_binary += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping_binary))
+        return sat_clauses, milp_constraints    
 
     ###############################################################################################################
     ###############################################################################################################
@@ -1131,7 +1445,16 @@ class SboxAnalyzer(SBox):
         if self._data_required_for_difflin_analysis == None:
             self._compute_data_for_difflin_analysis()
         return self._dlct
+    
 
+    def get_dlct_spectrum(self):
+        """
+        Compute the set of different entries in DLCT
+        """
+
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        return self._dlct_spectrum
             
     def upper_differential_linear_connectivity_table(self):
         """
@@ -1199,7 +1522,10 @@ class SboxAnalyzer(SBox):
         for diff in range(2**input_size):
             for mask in range(2**output_size):
                 for diff_middle in range(2**input_size):
-                    self._ddlct[diff][mask] += ddt[diff][diff_middle] * dlct[diff_middle][mask]        
+                    self._ddlct[diff][mask] += ddt[diff][diff_middle] * dlct[diff_middle][mask]
+        self._ddlct_spectrum = sorted(list(set(flatten(self._ddlct))))
+        self._ddlct_weights = [abs(float(log(abs(x), 2))) for x in self._ddlct_spectrum if x != 0]
+        self._len_ddlct_weights = len(self._ddlct_weights)   
         return self._ddlct
     
     def check_hadipour_theorem(self):
@@ -1246,19 +1572,10 @@ class SboxAnalyzer(SBox):
         else:
             print("The Hadipour et al.'s theorem is not satisfied.")
             return False
-    
-    def get_dlct_spectrum(self):
-        """
-        Compute the set of different entries in DLCT
-        """
-
-        if self._data_required_for_difflin_analysis is None:
-            self._compute_data_for_difflin_analysis()
-        return self._dlct_spectrum
 
     def compute_star_dlct(self, reverse=1):
         """
-        Generate the start DLCT (or 0/1 DLCT)
+        Generate the *-DLCT (or 0/1 DLCT)
         Star DLCT is a 2^m*2^n binary array describing the possibility of differential-linear transitions through the S-box
         """
         
@@ -1293,7 +1610,7 @@ class SboxAnalyzer(SBox):
                     boolean_function[key] = reverse
         return boolean_function
 
-    def _star_dlct_to_boolean_function(self, reverse=1):
+    def _star_dlct_to_boolean_function(self, reverse=1, inverse=0):
         """
         Convert the star-DLCT into a Boolean function
         """
@@ -1305,30 +1622,126 @@ class SboxAnalyzer(SBox):
             for ly in range(2**self.output_size()):
                 y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
                 key = x + y
-                boolean_func[key] = self.star_dlct[dx][ly] ^ reverse
-        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse
+                boolean_func[key] = self.star_dlct[dx][ly] ^ reverse ^ inverse
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
         return boolean_func
-
-    def _star_dlct_to_characteristic_boolean_function(self, reverse=1, inverse=0):
+    
+    def minimized_differential_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
         """
-        Convert the star-inverse-DLCT into a Boolean function
+        This method takes a given Boolean function and records its truth table in a file, 
+        adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
+        representation of the function. Following that, it interprets ESPRESSO's output and 
+        converts the simplified representation into the language recognized by MILP and SAT solvers.
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(self._dlct_spectrum)
+        if subtable not in valid_values_for_subtable:
+            raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        elif len(input_variables) != self.input_size():
+            raise ValueError("The size of input variables should be {0}".format(self.input_size()))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        elif len(output_variables) != self.output_size():
+            raise ValueError("The size of output variables should be {0}".format(self.output_size()))
+        input_output_variables = input_variables + output_variables
+        self.linear_objective = ""
+        if subtable == "star_inverse":
+            boolean_function = self._star_dlct_to_boolean_function(reverse=reverse, inverse=1)
+        elif subtable == "star":
+            boolean_function = self._star_dlct_to_boolean_function(reverse=reverse)
+        elif subtable in self._dlct_spectrum:
+            boolean_function = self._dlct_to_booleanfunction(corr=subtable, reverse=reverse)
+        else:
+            boolean_function = self._dlct_to_booleanfunction(reverse=reverse)
+            if self._len_dlct_weights != []:                
+                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._dlct_weights)]
+            else:
+                self.linear_objective = "0"
+            self.linear_objective = "\nWeight: {}".format(" + ".join(self.linear_objective))
+            input_output_variables.extend([f"p{i}" for i in range(self._len_linear_weights)])
+        self._write_truth_table(filename=self.truth_table_filename, 
+                                boolean_function=boolean_function, 
+                                input_output_variables=input_output_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)            
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=input_output_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)        
+        print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
+        return sat_clauses, milp_constraints
+
+    def compute_star_double_dlct(self, reverse=1):
+        """
+        Generate the *-DDLCT (or 0/1 DDLCT)
+        Star DDLCT is a 2^m*2^n binary array describing the possibility of differential-linear transitions 
+        through two consecutive S-boxes with key-addition or a linear layer in between. 
+        """
+
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        ddlct = self.double_differential_linear_connectivity_table()
+        self.star_ddlct = [[0 for i in range(2**self.output_size())] for j in range(2**self.input_size())]
+        for dx in range(2**self.input_size()):
+            for ly in range(2**self.output_size()):
+                if ddlct[dx][ly] != 0:
+                    self.star_ddlct[dx][ly] = reverse ^ 1
+                else:
+                    self.star_ddlct[dx][ly] = reverse
+        return self.star_ddlct
+    
+    def _ddlct_to_booleanfunction(self, corr, reverse=1):
+        """
+        Convert a subtable of DDLCT into a Boolean function
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        
+        boolean_function = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                if self._ddlct[dx][ly] == corr:
+                    boolean_function[key] = reverse ^ 1
+                else:
+                    boolean_function[key] = reverse
+        return boolean_function
+    
+    def _star_ddlct_to_boolean_function(self, reverse=1, inverse=0):
+        """
+        Convert the *-DDLCT into a Boolean function
         """
  
-        self.compute_star_dlct(reverse=reverse)
+        self.compute_star_double_dlct(reverse=reverse)
         boolean_func = dict()
         for dx in range(2**self.input_size()):
             x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
             for ly in range(2**self.output_size()):
                 y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
-                for s in range(2):
-                    key = x + y + (s, )
-                    if self.star_dlct[dx][ly] == s:
-                        boolean_func[key] = 1 ^ reverse ^ inverse
-                    else:
-                        boolean_func[key] = 0 ^ reverse ^ inverse
+                key = x + y
+                boolean_func[key] = self.star_ddlct[dx][ly] ^ reverse ^ inverse
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
         return boolean_func
     
-    def minimized_differential_linear_constraints(self, mode=6, subtable=None):
+    def minimized_double_differential_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
@@ -1347,43 +1760,460 @@ class SboxAnalyzer(SBox):
         else:
             reverse = 1
         
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        elif len(input_variables) != self.input_size():
+            raise ValueError("The size of input variables should be {0}".format(self.input_size()))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        elif len(output_variables) != self.output_size():
+            raise ValueError("The size of output variables should be {0}".format(self.output_size()))
+        input_output_variables = input_variables + output_variables
+        
         self.linear_objective = ""
         if subtable == "star_inverse":
-            boolean_function = self._star_dlct_to_characteristic_boolean_function(reverse=reverse, inverse=1)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())] + ["s"]
-
+            boolean_function = self._star_ddlct_to_boolean_function(reverse=reverse, inverse=1)
         elif subtable == "star":
-            boolean_function = self._star_dlct_to_boolean_function(reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
+            boolean_function = self._star_ddlct_to_boolean_function(reverse=reverse)
         elif subtable in self._dlct_spectrum:
-            boolean_function = self._dlct_to_booleanfunction(corr=subtable, reverse=reverse)
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())]
+            boolean_function = self._ddlct_to_booleanfunction(corr=subtable, reverse=reverse)
         else:
-            boolean_function = self._dlct_to_booleanfunction(reverse=reverse)
+            boolean_function = self._ddlct_to_booleanfunction(reverse=reverse)
             if self._len_dlct_weights != []:                
-                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._dlct_weights)]
+                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._len_dlct_weights)]
             else:
                 self.linear_objective = "0"
             self.linear_objective = "\nWeight: {}".format(" + ".join(self.linear_objective))
-            input_output_variables = [f"a{i}" for i in range(self.input_size())] + \
-                                     [f"b{i}" for i in range(self.output_size())] + \
-                                     [f"p{i}" for i in range(self._len_linear_weights)]
-        self._write_truth_table(filename=self.truth_table_filename, 
-                                boolean_function=boolean_function, 
+            input_output_variables.extend([f"p{i}" for i in range(self._len_dlct_weights)])
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
                                 input_output_variables=input_output_variables)
         starting_time = time.time()
         print("Simplifying the MILP/SAT constraints ...")
-        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)            
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
         elapsed_time = time.time() - starting_time
         sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=input_output_variables)
         os.remove(self.simplified_truth_table_filename)
-        os.remove(self.truth_table_filename)        
+        os.remove(self.truth_table_filename)
         print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
-        print("{}".format(self.variables_mapping + self.linear_objective))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
+        return sat_clauses, milp_constraints
+    
+    def triple_differential_linear_connectivity_table(self):
+        """
+        Compute the triple differential-linear connectivity table
+        """
+
+        input_size = self.input_size()
+        output_size = self.output_size()
+        if self._data_required_for_difflin_analysis == None:
+            self._compute_data_for_difflin_analysis()
+        if self._data_required_for_differential_analysis == None:
+            self._compute_data_for_differential_analysis()
+        if self._data_required_for_linear_analysis == None:
+            self._compute_data_for_linear_analysis()
+        ddlct = self.double_differential_linear_connectivity_table()        
+        ddt = self.ddt
+        self._tdlct = [[0 for _ in range(2**output_size)] for _ in range(2**input_size)]
+        for dx in range(2**input_size):
+            for ly in range(2**output_size):
+                for dm in range(2**output_size):
+                    self._tdlct[dx][ly] += ddt[dx][dm] * ddlct[dm][ly]
+        return self._tdlct
+    
+    def _tdlct_to_booleanfunction(self, corr, reverse=1):
+        """
+        Convert a subtable of TDLCT into a Boolean function
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        tdlct = self.triple_differential_linear_connectivity_table()
+        boolean_function = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                if tdlct[dx][ly] == corr:
+                    boolean_function[key] = reverse ^ 1
+                else:
+                    boolean_function[key] = reverse
+        return boolean_function
+
+    def compute_star_triple_dlct(self, reverse=1):
+        """
+        Generate the *-TDLCT (or 0/1 TDLCT)
+        Star TDLCT is a 2^m*2^n binary array describing the possibility of differential-linear transitions 
+        through three consecutive S-boxes with key-addition or a linear layer in between. 
+        """
+
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        tdlct = self.triple_differential_linear_connectivity_table()
+        self.star_tdlct = [[0 for i in range(2**self.output_size())] for j in range(2**self.input_size())]
+        for dx in range(2**self.input_size()):
+            for ly in range(2**self.output_size()):
+                if tdlct[dx][ly] != 0:
+                    self.star_tdlct[dx][ly] = reverse ^ 1
+                else:
+                    self.star_tdlct[dx][ly] = reverse
+        return self.star_tdlct
+        
+    def _star_tdlct_to_boolean_function(self, reverse=1, inverse=0):
+        """
+        Convert the *-TDLCT into a Boolean function
+        """
+ 
+        self.compute_star_triple_dlct(reverse=reverse)
+        boolean_func = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                boolean_func[key] = self.star_tdlct[dx][ly] ^ reverse ^ inverse
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
+        return boolean_func
+    
+    def minimized_triple_differential_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
+        """
+        This method takes a given Boolean function and records its truth table in a file, 
+        adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
+        representation of the function. Following that, it interprets ESPRESSO's output and 
+        converts the simplified representation into the language recognized by MILP and SAT solvers.
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(self._dlct_spectrum)
+        if subtable not in valid_values_for_subtable:
+            raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+        
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        elif len(input_variables) != self.input_size():
+            raise ValueError("The size of input variables should be {0}".format(self.input_size()))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        elif len(output_variables) != self.output_size():
+            raise ValueError("The size of output variables should be {0}".format(self.output_size()))
+        input_output_variables = input_variables + output_variables
+        
+        self.linear_objective = ""
+        if subtable == "star_inverse":
+            boolean_function = self._star_tdlct_to_boolean_function(reverse=reverse, inverse=1)
+        elif subtable == "star":
+            boolean_function = self._star_tdlct_to_boolean_function(reverse=reverse)
+        elif subtable in self._dlct_spectrum:
+            boolean_function = self._tdlct_to_booleanfunction(corr=subtable, reverse=reverse)
+        else:
+            boolean_function = self._tdlct_to_booleanfunction(reverse=reverse)
+            if self._len_dlct_weights != []:                
+                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._len_dlct_weights)]
+            else:
+                self.linear_objective = "0"
+            self.linear_objective
+            input_output_variables.extend([f"p{i}" for i in range(self._len_dlct_weights)])
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=input_output_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=input_output_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
+        return sat_clauses, milp_constraints
+    
+    def quadruple_differential_linear_connectivity_table(self):
+        """
+        Compute the quadruple differential-linear connectivity table (4-DLCT)
+        """
+
+        input_size = self.input_size()
+        output_size = self.output_size()
+        if self._data_required_for_difflin_analysis == None:
+            self._compute_data_for_difflin_analysis()
+        if self._data_required_for_differential_analysis == None:
+            self._compute_data_for_differential_analysis()
+        if self._data_required_for_linear_analysis == None:
+            self._compute_data_for_linear_analysis()
+        tdlct = self.triple_differential_linear_connectivity_table()
+        ddt = self.ddt
+        self._qdlct = [[0 for _ in range(2**output_size)] for _ in range(2**input_size)]
+        for dx in range(2**input_size):
+            for ly in range(2**output_size):
+                for dm in range(2**output_size):
+                    self._qdlct[dx][ly] += ddt[dx][dm] * tdlct[dm][ly]
+        return self._qdlct
+
+    def _qdlct_to_booleanfunction(self, corr, reverse=1):
+        """
+        Convert a subtable of 4-DLCT into a Boolean function
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        qdlct = self.quadruple_differential_linear_connectivity_table()
+        boolean_function = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                if qdlct[dx][ly] == corr:
+                    boolean_function[key] = reverse ^ 1
+                else:
+                    boolean_function[key] = reverse
+        return boolean_function
+    
+    def compute_star_quadruple_dlct(self, reverse=1):
+        """
+        Generate the *-4-DLCT (or 0/1 QDLCT)
+        Star QDLCT is a 2^m*2^n binary array describing the possibility of differential-linear transitions 
+        through four consecutive S-boxes with key-addition or a linear layer in between. 
+        """
+
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        quaddlct = self.quadruple_differential_linear_connectivity_table()
+        self.star_quaddlct = [[0 for i in range(2**self.output_size())] for j in range(2**self.input_size())]
+        for dx in range(2**self.input_size()):
+            for ly in range(2**self.output_size()):
+                if quaddlct[dx][ly] != 0:
+                    self.star_quaddlct[dx][ly] = reverse ^ 1
+                else:
+                    self.star_quaddlct[dx][ly] = reverse
+        return self.star_quaddlct
+    
+    def _star_quaddlct_to_boolean_function(self, reverse=1, inverse=0):
+        """
+        Convert the *-4-DLCT into a Boolean function
+        """
+ 
+        self.compute_star_quadruple_dlct(reverse=reverse)
+        boolean_func = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                boolean_func[key] = self.star_quaddlct[dx][ly] ^ reverse ^ inverse
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
+        return boolean_func
+    
+    def minimized_quadruple_differential_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
+        """
+        This method takes a given Boolean function and records its truth table in a file, 
+        adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
+        representation of the function. Following that, it interprets ESPRESSO's output and 
+        converts the simplified representation into the language recognized by MILP and SAT solvers.
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(self._dlct_spectrum)
+        if subtable not in valid_values_for_subtable:
+            raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+        
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        elif len(input_variables) != self.input_size():
+            raise ValueError("The size of input variables should be {0}".format(self.input_size()))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        elif len(output_variables) != self.output_size():
+            raise ValueError("The size of output variables should be {0}".format(self.output_size()))
+        input_output_variables = input_variables + output_variables
+        
+        self.linear_objective = ""
+        if subtable == "star_inverse":
+            boolean_function = self._star_quaddlct_to_boolean_function(reverse=reverse, inverse=1)
+        elif subtable == "star":
+            boolean_function = self._star_quaddlct_to_boolean_function(reverse=reverse)
+        elif subtable in self._dlct_spectrum:
+            boolean_function = self._qdlct_to_booleanfunction(corr=subtable, reverse=reverse)
+        else:
+            boolean_function = self._qdlct_to_booleanfunction(reverse=reverse)
+            if self._len_dlct_weights != []:                
+                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._len_dlct_weights)]
+            else:
+                self.linear_objective = "0"
+            self.linear
+            input_output_variables.extend([f"p{i}" for i in range(self._len_dlct_weights)])
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=input_output_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=input_output_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
+        return sat_clauses, milp_constraints
+    
+    def quintuple_differential_linear_connectivity_table(self):
+        """
+        Compute the quintuple differential-linear connectivity table (5-DLCT)
+        """
+
+        input_size = self.input_size()
+        output_size = self.output_size()
+        if self._data_required_for_difflin_analysis == None:
+            self._compute_data_for_difflin_analysis()
+        if self._data_required_for_differential_analysis == None:
+            self._compute_data_for_differential_analysis()
+        if self._data_required_for_linear_analysis == None:
+            self._compute_data_for_linear_analysis()
+        quaddlct = self.quadruple_differential_linear_connectivity_table()
+        ddt = self.ddt
+        self._quindlct = [[0 for _ in range(2**output_size)] for _ in range(2**input_size)]
+        for dx in range(2**input_size):
+            for ly in range(2**output_size):
+                for dm in range(2**output_size):
+                    self._quindlct[dx][ly] += ddt[dx][dm] * quaddlct[dm][ly]
+        return self._quindlct
+    
+    def _quindlct_to_booleanfunction(self, corr, reverse=1):
+        """
+        Convert a subtable of 5-DLCT into a Boolean function
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        quindlct = self.quintuple_differential_linear_connectivity_table()
+        boolean_function = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                if quindlct[dx][ly] == corr:
+                    boolean_function[key] = reverse ^ 1
+                else:
+                    boolean_function[key] = reverse
+        return boolean_function
+    
+    def compute_star_quintuple_dlct(self, reverse=1):
+        """
+        Generate the *-5-DLCT (or 0/1 QDLCT)
+        Star QDLCT is a 2^m*2^n binary array describing the possibility of differential-linear transitions 
+        through five consecutive S-boxes with key-addition or a linear layer in between. 
+        """
+
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        quindlct = self.quintuple_differential_linear_connectivity_table()
+        self.star_quindlct = [[0 for i in range(2**self.output_size())] for j in range(2**self.input_size())]
+        for dx in range(2**self.input_size()):
+            for ly in range(2**self.output_size()):
+                if quindlct[dx][ly] != 0:
+                    self.star_quindlct[dx][ly] = reverse ^ 1
+                else:
+                    self.star_quindlct[dx][ly] = reverse
+        return self.star_quindlct
+
+    def _star_quindlct_to_boolean_function(self, reverse=1, inverse=0):
+        """
+        Convert the *-5-DLCT into a Boolean function
+        """
+ 
+        self.compute_star_quintuple_dlct(reverse=reverse)
+        boolean_func = dict()
+        for dx in range(2**self.input_size()):
+            x = tuple(map(int, list(bin(dx)[2:].zfill(self.input_size()))))
+            for ly in range(2**self.output_size()):
+                y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
+                key = x + y
+                boolean_func[key] = self.star_quindlct[dx][ly] ^ reverse ^ inverse
+        boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
+        return boolean_func
+    
+    def minimized_quintuple_differential_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None):
+        """
+        This method takes a given Boolean function and records its truth table in a file, 
+        adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
+        representation of the function. Following that, it interprets ESPRESSO's output and 
+        converts the simplified representation into the language recognized by MILP and SAT solvers.
+        """
+        
+        if self._data_required_for_difflin_analysis is None:
+            self._compute_data_for_difflin_analysis()
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(self._dlct_spectrum)
+        if subtable not in valid_values_for_subtable:
+            raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+        
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(self.input_size())]
+        elif len(input_variables) != self.input_size():
+            raise ValueError("The size of input variables should be {0}".format(self.input_size()))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(self.output_size())]
+        elif len(output_variables) != self.output_size():
+            raise ValueError("The size of output variables should be {0}".format(self.output_size()))
+        input_output_variables = input_variables + output_variables
+        
+        self.linear_objective = ""
+        if subtable == "star_inverse":
+            boolean_function = self._star_quindlct_to_boolean_function(reverse=reverse, inverse=1)
+        elif subtable == "star":
+            boolean_function = self._star_quindlct_to_boolean_function(reverse=reverse)
+        elif subtable in self._dlct_spectrum:
+            boolean_function = self._quindlct_to_booleanfunction(corr=subtable, reverse=reverse)
+        else:
+            boolean_function = self._quindlct_to_booleanfunction(reverse=reverse)
+            if self._len_dlct_weights != []:                
+                self.linear_objective = ["{:0.04f} p{:d}".format(self._dlct_weights[i], i) for i in range(self._len_dlct_weights)]
+            else:
+                self.linear_objective = "0"
+            self.linear_objective
+            input_output_variables.extend([f"p{i}" for i in range(self._len_dlct_weights)])
+        self._write_truth_table(filename=self.truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=input_output_variables)
+        starting_time = time.time()
+        print("Simplifying the MILP/SAT constraints ...")
+        self.simplify_by_espresso(input_file=self.truth_table_filename, output_file=self.simplified_truth_table_filename, mode=mode)
+        elapsed_time = time.time() - starting_time
+        sat_clauses, milp_constraints = self._parse_the_output_of_espresso(filename=self.simplified_truth_table_filename, alphabet=input_output_variables)
+        os.remove(self.simplified_truth_table_filename)
+        os.remove(self.truth_table_filename)
+        print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.linear_objective))
         return sat_clauses, milp_constraints
 
 ###############################################################################################################
@@ -1400,8 +2230,8 @@ class SboxAnalyzer(SBox):
 if __name__ == "__main__":
     line_seperator = '\n' + '#' * 46 + '\n'    
     # example for differential analysis
-    from sage.crypto.sboxes import SBox
-    from sage.crypto.sboxes import CLEFIA_S0 as sb
+    # from sage.crypto.sboxes import SBox
+    # from sage.crypto.sboxes import CLEFIA_S0 as sb
     # sb = SBox([sb(i ^ 0x8) ^ sb(i) for i in range(16)])    
     # sb = SBox([0, 1, 1, 0])
     # Orthros's Sbox    
@@ -1411,8 +2241,8 @@ if __name__ == "__main__":
     # SPEEDY's S-box
     # sb = SBox([0x08, 0x00, 0x09, 0x03, 0x38, 0x10, 0x29, 0x13, 0x0C, 0x0D, 0x04, 0x07, 0x30, 0x01, 0x20, 0x23, 0x1A, 0x12, 0x18, 0x32, 0x3E, 0x16, 0x2C, 0x36, 0x1C, 0x1D, 0x14, 0x37, 0x34, 0x05, 0x24, 0x27, 0x02, 0x06, 0x0B, 0x0F, 0x33, 0x17, 0x21, 0x15, 0x0A, 0x1B, 0x0E, 0x1F, 0x31, 0x11, 0x25, 0x35, 0x22, 0x26, 0x2A, 0x2E, 0x3A, 0x1E, 0x28, 0x3C, 0x2B, 0x3B, 0x2F, 0x3F, 0x39, 0x19, 0x2D, 0x3D])    
     # sb = sb.inverse()
-    sa = SboxAnalyzer(sb)
-    print(sa)
+    # sa = SboxAnalyzer(sb)
+    # print(sa)
     # diff_spec = sa.get_differential_spectrum()
     # print(f"differential spectrum: {diff_spec}")
     # cnf, milp = sa.minimized_diff_constraints()
@@ -1447,16 +2277,16 @@ if __name__ == "__main__":
     # cnf, milp = sa.minimized_linear_constraints(subtable="star", mode=6)
     # print("\nencode LAT")
     # pretty_print(milp)
-    lin_spec = sa.get_squared_correlation_spectrum()
-    stn = 5
-    print(lin_spec)
-    print("\nencode {0}-LAT".format(lin_spec[stn]))
-    print(float(log(lin_spec[stn], 2)))
-    cnf, milp = sa.minimized_linear_constraints(subtable=lin_spec[stn], mode=7)
+    # lin_spec = sa.get_squared_correlation_spectrum()
+    # stn = 5
+    # print(lin_spec)
+    # print("\nencode {0}-LAT".format(lin_spec[stn]))
+    # print(float(log(lin_spec[stn], 2)))
+    # cnf, milp = sa.minimized_linear_constraints(subtable=lin_spec[stn], mode=7)
 
-    with open("milp.lp", "w") as fileobj:
+    # with open("milp.lp", "w") as fileobj:
         # fileobj.write("\nsubject to\n")
-        fileobj.write("\n".join(milp))
+        # fileobj.write("\n".join(milp))
         # fileobj.write("\nend")
     # with open("cnf.txt", "w") as fileobj:
     #     fileobj.write(cnf) 
@@ -1485,17 +2315,27 @@ if __name__ == "__main__":
     #     fileobj.write(cnf) 
 
     # example for deterministic differential analysis
+    # reset()
+    # from sboxanalyzer import SboxAnalyzer
+    # from sage.crypto.sboxes import CRAFT as sb
+    # sa = SboxAnalyzer(sb)
     # print("\nEncoding deterministic differential behavior ...\n")
-    # start_time = time.time()
     # diff_propagation = sa.encode_deterministic_differential_behavior()
-    # elapsed_time = time.time() - start_time
-    # print("\nTime to generate differential behavior: {0:0.2f} seconds".format(elapsed_time))
     # print("\nDifferential behavior:")
     # pretty_print(diff_propagation)
     # cp_constraints = sa.generate_cp_constraints(diff_propagation)
     # print("\nencode deterministic differential behavior")
     # print(cp_constraints)
-    # print(line_seperator)
+    # cnf, milp = sa.minimized_determinisitc_diff_constraints()
+    # with open("milp.lp", "w") as fileobj:
+    #     fileobj.write("\nsubject to\n")
+    #     fileobj.write("\n".join(milp))
+    #     fileobj.write("\nbin\n")
+    #     for var in sa.variables_binary:
+    #         fileobj.write(f"{var}\n")            
+    #     fileobj.write("end")
+    # pretty_print(milp)
+
 
     # # example for deterministic linear analysis
     # print("\nEncoding deterministic linear behavior ...\n")
@@ -1511,6 +2351,7 @@ if __name__ == "__main__":
     # print(line_seperator)
 
     # # example for deterministic integral analysis
+    # reset()
     # print("\nEncoding deterministic integral behavior ...\n")
     # start_time = time.time()
     # int_propagation_forward = sa.encode_deterministic_integral_forward()
@@ -1540,20 +2381,90 @@ if __name__ == "__main__":
     # pretty_print(milp)
 
     # # example of encoding a Boolean function
-    reset()
-    print("\nEncoding a Boolean function")
-    truth_table = [0, 0, 0, 0, 0, 0, 1, 1]
-    input_variables = ["a0", "a1", "a2"]
-    from sboxanalyzer import SboxAnalyzer as sa
-    cnf, milp = sa.encode_boolean_function(truth_table=truth_table, input_variables=input_variables, mode=2)
-    with open("milp.lp", "w") as fileobj:
-        fileobj.write("\nsubject to\n")
-        fileobj.write("\n".join(milp))
-        fileobj.write("\nbin\n")
-        for var in input_variables:
-            fileobj.write(f"{var}\n")
-        fileobj.write("end")
-    pretty_print(milp)
+    # reset()
+    # print("\nEncoding a Boolean function")
+    # truth_table = [0, 0, 0, 0, 0, 0, 1, 1]
+    # input_variables = ["a0", "a1", "a2"]
+    # from sboxanalyzer import SboxAnalyzer as sa
+    # cnf, milp = sa.encode_boolean_function(truth_table=truth_table, input_variables=input_variables, mode=2)
+    # with open("milp.lp", "w") as fileobj:
+    #     fileobj.write("\nsubject to\n")
+    #     fileobj.write("\n".join(milp))
+    #     fileobj.write("\nbin\n")
+    #     for var in input_variables:
+    #         fileobj.write(f"{var}\n")
+    #     fileobj.write("end")
+    # pretty_print(milp)
 
+    # # example of encoding a set of binary vectors
+    # reset()
+    # print("\nEncoding a set of binary vectors")
+    # binary_vectors = [(1, 1, 1, 1, 0, 0, 0, 1), (1, 1, 1, 1, 1, 0, 0, 0), (1, 1, 1, 1, 0, 0, 1, 1), (1, 1, 1, 1, 0, 0, 1, 0)]
+    # input_variables = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
+    # from sboxanalyzer import SboxAnalyzer as sa
+    # cnf, milp = sa.encode_set_of_binary_vectors(set_of_binary_vectors=binary_vectors, input_variables=input_variables, mode=6)
+    # with open("milp.lp", "w") as fileobj:
+    #     fileobj.write("\nsubject to\n")
+    #     fileobj.write("\n".join(milp))
+    #     fileobj.write("\nbin\n")
+    #     for var in input_variables:
+    #         fileobj.write(f"{var}\n")
+    #     fileobj.write("end")
+    # pretty_print(milp)
+
+    # # compute the ddlct of GIFT-64 
+    reset()
+    from sage.crypto.sboxes import GIFT as sb
+    from sboxanalyzer import SboxAnalyzer
+    sa = SboxAnalyzer(sb)
+    dlct = sa.double_differential_linear_connectivity_table()
+    ddt = sa.difference_distribution_table()
+    group_maps = [12, 1, 6, 11, 8, 13, 2, 7, 4, 9, 14, 3, 0, 5, 10, 15]
+    input_diffs = [0x1 << i for i in range(16)]
+    output_masks = [0x1 << i for i in range(16)]
+    ddlct = dict()
+    for di in input_diffs:
+        for lo in output_masks:
+            ddlct[(di, lo)] = 0
+    for di in input_diffs:
+        # split di into 4 chunkes of 4 bits each 
+        di0 = (di >> 12) & 0xf
+        di1 = (di >> 8) & 0xf
+        di2 = (di >> 4) & 0xf
+        di3 = di & 0xf
+        for lo in output_masks:
+            # split li into 4 chunkes of 4 bits each
+            lo0 = (lo >> 12) & 0xf
+            lo1 = (lo >> 8) & 0xf
+            lo2 = (lo >> 4) & 0xf
+            lo3 = lo & 0xf
+            for dm in range(2**16):
+                dm0 = (dm >> 12) & 0xf
+                dm1 = (dm >> 8) & 0xf
+                dm2 = (dm >> 4) & 0xf
+                dm3 = dm & 0xf
+                if ddt[di0][dm0] * ddt[di1][dm1] * ddt[di2][dm2] * ddt[di3][dm3] > 0:                    
+                    dm = list(bin(dm)[2:].zfill(16))
+                    # apply the group map such that position i in dm is mapped to group_maps[i]
+                    dm = [dm[group_maps[i]] for i in range(16)]
+                    dm = int("".join(dm), 2)                
+                    dm0n = (dm >> 12) & 0xf
+                    dm1n = (dm >> 8) & 0xf
+                    dm2n = (dm >> 4) & 0xf
+                    dm3n = dm & 0xf
+                    if dlct[dm0n][lo0]*dlct[dm1n][lo1]*dlct[dm2n][lo2]*dlct[dm3n][lo3] > 0:
+                        ddlct[(di, lo)] = ddlct.get((di, lo), 0) +\
+                                          ddt[di0][dm0]*dlct[dm0n][lo0]*\
+                                          ddt[di1][dm1]*dlct[dm1n][lo1]*\
+                                          ddt[di2][dm2]*dlct[dm2n][lo2]*\
+                                          ddt[di3][dm3]*dlct[dm3n][lo3]
+    for di in input_diffs:
+        cnt = 0
+        for lo in output_masks:
+            if ddlct[(di, lo)] != 0:
+                cnt += 1
+            print(f"ddlct[{di}][{lo}] = {ddlct[(di, lo)]}")
+        print(f"Number of non-zero entries for input difference {di}: {cnt}")
+                    
 
     

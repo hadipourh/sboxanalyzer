@@ -12,6 +12,8 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
   - [Dependencies](#dependencies)
   - [Installation](#installation)
   - [Usage](#usage)
+  - [Examples - Convert a Set of Binary Vectors to CNF/MILP Constraints](#examples---convert-a-set-of-binary-vectors-to-cnfmilp-constraints)
+  - [Examples - Convert a Truth Table to CNF/MILP Constraints](#examples---convert-a-truth-table-to-cnfmilp-constraints)
   - [Examples - DDT Encoding](#examples---ddt-encoding)
     - [Encoding the DDT of SKINNY-64](#encoding-the-ddt-of-skinny-64)
     - [Encoding the DDT of Ascon](#encoding-the-ddt-of-ascon)
@@ -143,6 +145,103 @@ Interpretation of the outputs:
 - `Input:	a0||a1||a2||a3; a0: msb`: The binary vector $a = a_{0}||a_{1}||a_{2}||a_{3}$ encodes the input difference where $a_{0}$ is the most significant bit of $a$.
 - `Output:	b0||b1||b2||b3; b0: msb`: The binary vector $b = b_{0}||b_{1}||b_{2}||b_{3}$ encodes the output difference where $b_{0}$ is the most significant bit of $b$.
 - `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, where $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$. The additional variables $p_{0}, p_{1}$, and $p_{2}$ are binary decision variables to encode the probability of differential transitions.
+
+## Examples - Convert a Set of Binary Vectors to CNF/MILP Constraints
+
+Here, we show how to describe a set of binary vectors over $\mathbb{F}_{2}^{n}$ to (minimized) CNF/MILP constraints.
+
+Assume that we have a set of binary vectors over $\mathbb{F}_{2}^{17}$ as follows:
+
+```
+S = {
+  (1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0),
+  (1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0),
+  (1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0),
+  (1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0),
+  (0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0),
+  (0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0),
+  (0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1)
+}
+```
+
+We can use S-box Analyzer to encode $S$ to (minimized) CNF/MILP constraints. 
+The following code shows how to do this:
+
+```python
+sage: from sboxanalyzer import SboxAnalyzer as SA
+sage: S = [
+....:     (1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0),
+....:     (1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0),
+....:     (1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0),
+....:     (1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0),
+....:     (0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0),
+....:     (0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0),
+....:     (0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1)
+....: ]
+sage: cnf, milp = SA.encode_set_of_binary_vectors(S, mode=6)
+Generateing and simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.12 seconds
+Number of constraints: 27
+Variables: x0||x1||x2||x3||x4||x5||x6||x7||x8||x9||x10||x11||x12||x13||x14||x15||x16; msb: x0
+sage: pretty_print(milp)
+['- x1 - x3 >= -1',
+ '- x3 + x5 >= 0',
+ 'x5 - x6 >= 0',
+ 'x6 - x7 >= 0',
+ '- x2 - x9 >= -1',
+ 'x1 + x9 >= 1',
+ '- x6 + x13 >= 0',
+ '- x11 + x14 >= 0',
+ 'x12 + x14 >= 1',
+ 'x13 - x15 >= 0',
+ 'x8 + x15 >= 1',
+ 'x3 - x16 >= 0',
+ 'x7 - x16 >= 0',
+ 'x14 - x16 >= 0',
+ 'x3 + x4 - x7 >= 0',
+ 'x3 + x6 + x8 >= 1',
+ '- x0 + x4 - x9 >= -1',
+ 'x4 - x8 - x10 >= -1',
+ '- x4 - x8 + x11 >= -1',
+ '- x4 - x10 - x13 >= -2',
+ 'x0 + x7 - x14 >= 0',
+ '- x6 + x11 - x15 >= -1',
+ '- x1 + x12 - x15 >= -1',
+ '- x0 + x3 + x15 >= 0',
+ 'x10 - x12 + x16 >= 0',
+ '- x5 - x8 - x9 + x12 >= -2',
+ 'x2 - x5 - x11 - x13 >= -2']
+sage: print(cnf)
+(~x1 | ~x3) & (~x3 | x5) & (x5 | ~x6) & (x6 | ~x7) & (~x2 | ~x9) & (x1 | x9) & (~x6 | x13) & (~x11 | x14) & (x12 | x14) & (x13 | ~x15) & (x8 | x15) & (x3 | ~x16) & (x7 | ~x16) & (x14 | ~x16) & (x3 | x4 | ~x7) & (x3 | x6 | x8) & (~x0 | x4 | ~x9) & (x4 | ~x8 | ~x10) & (~x4 | ~x8 | x11) & (~x4 | ~x10 | ~x13) & (x0 | x7 | ~x14) & (~x6 | x11 | ~x15) & (~x1 | x12 | ~x15) & (~x0 | x3 | x15) & (x10 | ~x12 | x16) & (~x5 | ~x8 | ~x9 | x12) & (x2 | ~x5 | ~x11 | ~x13)
+```
+
+## Examples - Convert a Truth Table to CNF/MILP Constraints
+
+Here, we show how to convert a truth table of a Boolean function to CNF/MILP constraints.
+Let's generate a random truth table of a Boolean function $f: \mathbb{F}_{2}^{4} \rightarrow \mathbb{F}_{2}$:
+```python
+sage: BF = [randint(0, 1) for _ in range(16)]; BF
+[1, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0]
+```
+
+We can use S-box Analyzer to encode the truth table of $f$ to (minimized) CNF/MILP constraints as follows:
+
+```python
+sage: from sboxanalyzer import SboxAnalyzer as SA
+sage: cnf, milp = SA.encode_boolean_function(BF, mode=6)
+Generateing and simplifying the MILP/SAT constraints ...
+Time used to simplify the constraints: 0.00 seconds
+Number of constraints: 5
+Variables: x0||x1||x2||x3; msb: x0
+sage: pretty_print(milp)
+['- x0 - x2 + x3 >= -1',
+ 'x0 - x1 + x2 + x3 >= 0',
+ '- x0 + x1 + x2 - x3 >= -1',
+ 'x1 - x2 + x3 >= 0',
+ '- x1 - x2 - x3 >= -2']
+sage: pretty_print(cnf)
+'(~x0 | ~x2 | x3) & (x0 | ~x1 | x2 | x3) & (~x0 | x1 | x2 | ~x3) & (x1 | ~x2 | x3) & (~x1 | ~x2 | ~x3)'
+```
 
 ## Examples - DDT Encoding
 
