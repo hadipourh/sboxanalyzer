@@ -1139,7 +1139,7 @@ class SboxAnalyzer(SBox):
             if len(output_variables) != n:
                 raise ValueError(f"The size of output variables should be {n}")
             output_variables = output_variables
-        last_condition = " /\\ ".join([f"output_variables{i} = -1" for i in range(n)])
+        last_condition = " /\\ ".join([f"{output_variables[i]} = -1" for i in range(n)])
         constraints = ""
         for i, (input, output) in enumerate(propagation_dictionary.items()):
             input_str = [f"{input_variables[i]} == {input[i]}" for i in range(m)]
