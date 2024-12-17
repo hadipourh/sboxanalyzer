@@ -1128,13 +1128,13 @@ class SboxAnalyzer(SBox):
         m = len(inputs[0])
         n = len(outputs[0])
         if input_variables is None:
-            input_variables = [f"input_variables{i}" for i in range(m)]
+            input_variables = [f"a{i}" for i in range(m)]
         else:            
             if len(input_variables) != m:
                 raise ValueError(f"The size of input variables should be {m}")
             input_variables = input_variables
         if output_variables is None:
-            output_variables = [f"output_variables{i}" for i in range(n)]
+            output_variables = [f"b{i}" for i in range(n)]
         else:
             if len(output_variables) != n:
                 raise ValueError(f"The size of output variables should be {n}")
