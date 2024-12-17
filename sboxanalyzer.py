@@ -1128,23 +1128,23 @@ class SboxAnalyzer(SBox):
         m = len(inputs[0])
         n = len(outputs[0])
         if input_variables is None:
-            a = [f"a{i}" for i in range(m)]
+            input_variables = [f"input_variables{i}" for i in range(m)]
         else:            
             if len(input_variables) != m:
                 raise ValueError(f"The size of input variables should be {m}")
-            a = input_variables
+            input_variables = input_variables
         if output_variables is None:
-            b = [f"b{i}" for i in range(n)]
+            output_variables = [f"output_variables{i}" for i in range(n)]
         else:
             if len(output_variables) != n:
                 raise ValueError(f"The size of output variables should be {n}")
-            b = output_variables
-        last_condition = " /\\ ".join([f"b{i} = -1" for i in range(n)])
+            output_variables = output_variables
+        last_condition = " /\\ ".join([f"output_variables{i} = -1" for i in range(n)])
         constraints = ""
         for i, (input, output) in enumerate(propagation_dictionary.items()):
-            input_str = [f"{a[i]} == {input[i]}" for i in range(m)]
+            input_str = [f"{input_variables[i]} == {input[i]}" for i in range(m)]
             input_str = " /\\ ".join(input_str)
-            output_str = [f"{b[i]} = {output[i]}" for i in range(n)]
+            output_str = [f"{output_variables[i]} = {output[i]}" for i in range(n)]
             output_str = " /\\ ".join(output_str)
             if i == 0:
                 constraints += f"if ({input_str}) then ({output_str})\n"
