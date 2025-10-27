@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sboxanalyzer"
-version = "0.0.1"
+version = "0.0.2"
 description = "A tool for analyzing S-boxes and Boolean functions against differential, linear, differential-linear, boomerang, and integral attacks"
 readme = "README.md"
 authors = [
-    {name = "Hosein Hadipour", email = "hadipour@iaik.tugraz.at"}
+    {name = "Hosein Hadipour", email = "hsn.hadipour@gmail.com"}
 ]
 maintainers = [
-    {name = "Hosein Hadipour", email = "hadipour@iaik.tugraz.at"}
+    {name = "Hosein Hadipour", email = "hsn.hadipour@gmail.com"}
 ]
 license = {text = "MIT"}
 keywords = [
