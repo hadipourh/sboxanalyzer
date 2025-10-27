@@ -1,0 +1,18 @@
+# Include documentation
+include README.md
+include LICENSE
+
+# Include espresso binaries and source
+recursive-include sboxanalyzer/binaries espresso-*
+recursive-include sboxanalyzer/espresso_src *.c *.h CMakeLists.txt
+include sboxanalyzer/espresso_src/README.md
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.py[co]
+global-exclude __pycache__
+global-exclude .git*
+global-exclude *.o
+global-exclude *.cmake
+global-exclude CMakeCache.txt
+global-exclude Makefile

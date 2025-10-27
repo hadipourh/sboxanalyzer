@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sboxanalyzer"
+version = "1.0.0"
+description = "A tool for analyzing S-boxes and Boolean functions against differential, linear, differential-linear, boomerang, and integral attacks"
+readme = "README.md"
+authors = [
+    {name = "Hosein Hadipour", email = "hadipour@iaik.tugraz.at"}
+]
+maintainers = [
+    {name = "Hosein Hadipour", email = "hadipour@iaik.tugraz.at"}
+]
+license = {text = "MIT"}
+keywords = [
+    "cryptography",
+    "cryptanalysis",
+    "sbox",
+    "boolean-functions",
+    "differential-cryptanalysis",
+    "linear-cryptanalysis",
+    "sat",
+    "milp",
+    "cnf"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Scientific/Engineering :: Mathematics"
+]
+requires-python = ">=3.9"
+dependencies = [
+    "passagemath-standard>=10.6.30"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "isort>=5.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/hadipourh/sboxanalyzer"
+Repository = "https://github.com/hadipourh/sboxanalyzer"
+Issues = "https://github.com/hadipourh/sboxanalyzer/issues"
+
+[tool.setuptools]
+packages = ["sboxanalyzer"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+sboxanalyzer = [
+    "binaries/espresso-*",
+    "espresso_src/**/*.c",
+    "espresso_src/**/*.h",
+    "espresso_src/CMakeLists.txt",
+    "espresso_src/README.md"
+]
+
+[tool.setuptools.exclude-package-data]
+sboxanalyzer = [
+    "espresso_src/.git*",
+    "espresso_src/__pycache__",
+    "espresso_build/*"
+]
