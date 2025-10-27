@@ -14,34 +14,34 @@ fi
 VERSION=$1
 TAG="v${VERSION}"
 
-echo "🚀 Preparing release ${TAG}"
+echo "Preparing release ${TAG}"
 
 # Check if working directory is clean
 if [ -n "$(git status --porcelain)" ]; then
-    echo "❌ Working directory is not clean. Please commit or stash changes first."
+    echo "ERROR: Working directory is not clean. Please commit or stash changes first."
     exit 1
 fi
 
 # Update version in pyproject.toml
-echo "📝 Updating version in pyproject.toml..."
+echo "Updating version in pyproject.toml..."
 sed -i.bak "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
 rm pyproject.toml.bak
 
 # Update version in __init__.py
-echo "📝 Updating version in __init__.py..."
+echo "Updating version in __init__.py..."
 sed -i.bak "s/^__version__ = \".*\"/__version__ = \"${VERSION}\"/" sboxanalyzer/__init__.py
 rm sboxanalyzer/__init__.py.bak
 
 # Commit version changes
-echo "💾 Committing version changes..."
+echo "Committing version changes..."
 git add pyproject.toml sboxanalyzer/__init__.py
 git commit -m "Bump version to ${VERSION}"
 
 # Create and push tag
-echo "🏷️  Creating tag ${TAG}..."
+echo "Creating tag ${TAG}..."
 git tag -a "${TAG}" -m "Release ${TAG}"
 
-echo "✅ Version ${VERSION} prepared!"
+echo "SUCCESS: Version ${VERSION} prepared!"
 echo ""
 echo "Next steps:"
 echo "1. Review the changes: git show"
