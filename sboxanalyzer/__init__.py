@@ -69,15 +69,18 @@ EXAMPLES::
 # In case you use this tool please include the above copyright informations (name, contact, license)
 #*****************************************************************************
 
+__version__ = "1.0.1"
+
 import subprocess
 import os
 import time
 from sage.all import *
 from sage.crypto.sboxes import SBox
 import itertools
+from .espresso_loader import get_espresso_path_cached
 
-# ESPRESO_BIN_PATH = os.path.join(os.environ['SAGE_ROOT'], 'local/bin/espresso')
-ESPRESO_BIN_PATH = os.path.join(os.getcwd(), 'espresso', 'build', 'espresso')
+# Get espresso binary path (uses pre-built binary or builds from source)
+ESPRESO_BIN_PATH = get_espresso_path_cached()
 
 class SboxAnalyzer(SBox):
     r"""

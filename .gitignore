@@ -95,6 +95,11 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# sboxanalyzer specific temporary files
+tmp/
+tt_*.txt
+stt_*.txt
+
 # Environments
 .env
 .venv
