@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sboxanalyzer"
-version = "1.0.0"
+version = "1.0.2"
 description = "A tool for analyzing S-boxes and Boolean functions against differential, linear, differential-linear, boomerang, and integral attacks"
 readme = "README.md"
 authors = [
