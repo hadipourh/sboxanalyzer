@@ -69,14 +69,19 @@ EXAMPLES::
 # In case you use this tool please include the above copyright informations (name, contact, license)
 #*****************************************************************************
 
-__version__ = "1.0.2"
+__version__ = "0.0.1"
 
 import subprocess
 import os
 import time
-from sage.all import *
+# Optimized imports: only import what we actually need from SageMath
 from sage.crypto.sboxes import SBox
+from sage.rings.polynomial.pbori.pbori import BooleanPolynomialRing
+from sage.misc.functional import log
+from sage.misc.misc_c import prod as product
+from sage.misc.flatten import flatten
 import itertools
+from random import randint
 from .espresso_loader import get_espresso_path_cached
 
 # Get espresso binary path (uses pre-built binary or builds from source)
