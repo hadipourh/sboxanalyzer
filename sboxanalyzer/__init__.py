@@ -69,7 +69,7 @@ EXAMPLES::
 # In case you use this tool please include the above copyright informations (name, contact, license)
 #*****************************************************************************
 
-__version__ = "1.0.1"
+__version__ = "1.0.0"
 
 import subprocess
 import os
