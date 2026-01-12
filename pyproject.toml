@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sboxanalyzer"
-version = "0.0.0"
+version = "0.0.1"
 description = "A tool for analyzing S-boxes and Boolean functions against differential, linear, differential-linear, boomerang, and integral attacks"
 readme = "README.md"
 authors = [
@@ -73,3 +73,10 @@ sboxanalyzer = [
     "espresso_src/__pycache__",
     "espresso_build/*"
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"

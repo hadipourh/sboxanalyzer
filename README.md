@@ -90,7 +90,7 @@ After installation, you can use S-box Analyzer directly in Python:
 from sboxanalyzer import *  
 from sage.crypto.sboxes import GIFT as sb
 sa = SboxAnalyzer(sb)                             
-cnf, milp = sa.minimized_diff_constraints()
+cnf, milp, cp = sa.minimized_diff_constraints()
                                                      
 # Output:
 # Simplifying the MILP/SAT constraints ...
@@ -194,7 +194,7 @@ sage: S = [
 ....:     (0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0),
 ....:     (0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1)
 ....: ]
-sage: cnf, milp = SA.encode_set_of_binary_vectors(S, mode=6)
+sage: cnf, milp, cp = SA.encode_set_of_binary_vectors(S, mode=6)
 Generateing and simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.12 seconds
 Number of constraints: 27
@@ -245,7 +245,7 @@ We can use S-box Analyzer to encode the truth table of $f$ to (minimized) CNF/MI
 
 ```python
 sage: from sboxanalyzer import SboxAnalyzer as SA
-sage: cnf, milp = SA.encode_boolean_function(BF, mode=6)
+sage: cnf, milp, cp = SA.encode_boolean_function(BF, mode=6)
 Generateing and simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.00 seconds
 Number of constraints: 5
@@ -268,7 +268,7 @@ sage: pretty_print(cnf)
 sage: from sboxanalyzer import *                                             
 sage: from sage.crypto.sboxes import SKINNY_4 as sb                          
 sage: sa = SboxAnalyzer(sb)                                                  
-sage: cnf, milp = sa.minimized_diff_constraints()
+sage: cnf, milp, cp = sa.minimized_diff_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.02 seconds
@@ -281,7 +281,7 @@ Weight: 3.0000 p0 + 2.0000 p1
 To make a trade-off between the time of simplification and the solution's optimality, S-Box Analyzer supports seven different modes, i.e., `[mode=1,...,mode=7]`. The default mode is 6, which is the best choice for both simplification time and optimality. For example, using the following command, we can minimize the number of constraints a little more:
 
 ```python
-sage: cnf, milp = sa.minimized_diff_constraints(mode=5)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(mode=5)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.22 seconds
@@ -296,7 +296,7 @@ Weight: 3.0000 p0 + 2.0000 p1
 ```python
 sage: from sage.crypto.sboxes import Ascon as sb                             
 sage: sa = SboxAnalyzer(sb)                                                  
-sage: cnf, milp = sa.minimized_diff_constraints()
+sage: cnf, milp, cp = sa.minimized_diff_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.04 seconds
@@ -311,7 +311,7 @@ Weight: 4.0000 p0 + 3.0000 p1 + 2.0000 p2
 ```python
 sage: from sage.crypto.sboxes import PRESENT as sb                           
 sage: sa = SboxAnalyzer(sb)                                                  
-sage: cnf, milp = sa.minimized_diff_constraints()
+sage: cnf, milp, cp = sa.minimized_diff_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.03 seconds
@@ -333,7 +333,7 @@ sage: sa = SboxAnalyzer(sb)
 sage: sa.get_differential_spectrum()                                                   
 [2, 4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 64]
 
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=2, mode=2)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=2, mode=2)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.50 seconds
@@ -345,7 +345,7 @@ Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ***Encode 4-DDT***
 
 ```python
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=4)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=4)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.67 seconds
@@ -357,7 +357,7 @@ Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ***Encode 6-DDT***
 
 ```python
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=6)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=6)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.03 seconds
@@ -369,7 +369,7 @@ Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 ***Encode 8-DDT***
 
 ```python
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=8)                  
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=8)                  
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.75 seconds
 Number of constraints: 235
@@ -387,7 +387,7 @@ sage: sa = SboxAnalyzer(sb)
 sage: sa.get_differential_spectrum()                                                       
 [2, 4]
 
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=2)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=2)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 65.11 seconds
@@ -395,7 +395,7 @@ Number of constraints: 7967
 Input:	a0||a1||a2||a3||a4||a5||a6||a7; a0: msb
 Output:	b0||b1||b2||b3||b4||b5||b6||b7; b0: msb
 
-sage: cnf, milp = sa.minimized_diff_constraints(subtable=4)                  
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable=4)                  
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 869.08 seconds
 Number of constraints: 321
@@ -413,7 +413,7 @@ In impossible differential attack (or zero correlation linear attacks) we only e
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import Midori_Sb0 as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_diff_constraints(subtable="star", mode=5)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(subtable="star", mode=5)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.01 seconds
@@ -430,7 +430,7 @@ By setting the `cryptosmt_compatible` argument to `True`, you can generate an SM
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import CRAFT as sb
 sage: sa = SboxAnalyzer(sb)                                       
-sage: cnf, milp = sa.minimized_diff_constraints(cryptosmt_compatible=True)
+sage: cnf, milp, cp = sa.minimized_diff_constraints(cryptosmt_compatible=True)
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.02 seconds
@@ -504,7 +504,7 @@ Here, we show how to encode the (squared) LAT of S-boxes.
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import SKINNY_4 as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_linear_constraints()
+sage: cnf, milp, cp = sa.minimized_linear_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.01 seconds
@@ -521,7 +521,7 @@ Note that `sa.minimized_linear_constraints()` encode the squared LAT scaled by c
 ```python
 sage: from sage.crypto.sboxes import Ascon as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_linear_constraints()
+sage: cnf, milp, cp = sa.minimized_linear_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.04 seconds
@@ -598,7 +598,7 @@ sage: mpt = sa.monomial_prediction_table(); mpt
  [0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 0],
  [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1],
  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]]
-sage: cnf, milp = sa.minimized_integral_constraints()
+sage: cnf, milp, cp = sa.minimized_integral_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.00 seconds
@@ -613,7 +613,7 @@ Output:	b0||b1||b2||b3; b0: msb
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import Ascon as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_integral_constraints()
+sage: cnf, milp, cp = sa.minimized_integral_constraints()
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.01 seconds
@@ -632,7 +632,7 @@ Here, we show how to encode the DLCT of S-boxes.
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import KNOT as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_differential_linear_constraints(subtable='star')
+sage: cnf, milp, cp = sa.minimized_differential_linear_constraints(subtable='star')
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.00 seconds
@@ -647,7 +647,7 @@ Output:	b0||b1||b2||b3; b0: msb
 sage: from sboxanalyzer import *
 sage: from sage.crypto.sboxes import Midori_Sb0 as sb
 sage: sa = SboxAnalyzer(sb)
-sage: cnf, milp = sa.minimized_differential_linear_constraints(subtable='star')
+sage: cnf, milp, cp = sa.minimized_differential_linear_constraints(subtable='star')
 
 Simplifying the MILP/SAT constraints ...
 Time used to simplify the constraints: 0.00 seconds
