@@ -705,7 +705,7 @@ Sbox Analyzer has been used in the following papers:
 - [X] Encoding LAT
 - [X] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
 - [X] Adding [DLCT, UDLCT, LDLCT and Hadipour et al&#39;s theorem](https://eprint.iacr.org/2024/255)
-- [ ] Integrating the tool into the [SageMath](https://www.sagemath.org/)
+- [X] Deliver as a pip Python package
 - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 
 Any contributions or comments regarding the development of the tool are warmly welcome.
