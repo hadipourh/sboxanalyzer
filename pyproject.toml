@@ -39,7 +39,10 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "passagemath-standard>=10.6.30"
+    "passagemath-modules>=10.6.30",
+    "passagemath-brial",
+    "passagemath-repl",
+    "passagemath-symbolics",
 ]
 
 [project.optional-dependencies]
