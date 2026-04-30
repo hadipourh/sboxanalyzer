@@ -35,6 +35,7 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
   - [MPT Encoding](#mpt-encoding)
     - [Encoding the MPT of PRESENT](#encoding-the-mpt-of-present)
     - [Encoding the MPT of Ascon](#encoding-the-mpt-of-ascon)
+  - [Exact Pair-Relation Encoding](#exact-pair-relation-encoding)
   - [DLCT Encoding](#dlct-encoding)
     - [Encoding the \*-DLCT of KNOT](#encoding-the--dlct-of-knot)
     - [Encoding the \*-DLCT of Midori](#encoding-the--dlct-of-midori)
@@ -161,6 +162,37 @@ Interpretation of the outputs:
 - `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, where $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$. The additional variables $p_{0}, p_{1}$, and $p_{2}$ are binary decision variables to encode the probability of differential transitions.
 
 **Note:** The examples below show interactive prompts (e.g., `sage:`) for clarity, but all code works in regular Python after `pip install sboxanalyzer`. You can run these examples in Python, IPython, Jupyter notebooks, or SageMath.
+
+## Exact Pair-Relation Encoding
+
+S-box Analyzer can also derive and minimize exact local relations on packed pair states. This is useful when the local object is not a DDT, LAT, or DLCT entry, but an exact relation between two basis expansions built directly from the S-box lookup table.
+
+The public API mirrors the existing DDT and LAT interfaces: instantiate `SboxAnalyzer` from the lookup table, choose the input and output bases, then ask for either support constraints or a weighted encoding.
+
+```python
+sage: from sboxanalyzer import SboxAnalyzer
+sage: from sage.crypto.sboxes import PRESENT
+sage: sa = SboxAnalyzer(PRESENT)
+sage: sa.supported_exact_pair_bases()
+('quasi', 'same', 'subset-diff', 'ultra-diff')
+
+sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
+....:     input_basis="quasi",
+....:     output_basis="same",
+....:     subtable="star",
+....:     mode=6,
+....: )
+
+sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
+....:     input_basis="quasi",
+....:     output_basis="same",
+....:     subtable=None,
+....:     weight_model="v2",
+....:     mode=6,
+....: )
+```
+
+In this interface, the packed input and output pair states are encoded by `2m` and `2n` binary variables, respectively, where `m` and `n` are the S-box input and output sizes. The option `subtable="star"` returns support-only constraints, while `weight_model="v2"` appends one-hot cost bits that encode the 2-adic valuation class of each non-zero local coefficient.
 
 ## Convert a Set of Binary Vectors to CNF/MILP Constraints
 
@@ -705,6 +737,7 @@ Sbox Analyzer has been used in the following papers:
 - [X] Encoding LAT
 - [X] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
 - [X] Adding [DLCT, UDLCT, LDLCT and Hadipour et al&#39;s theorem](https://eprint.iacr.org/2024/255)
+- [X] Encoding exact pair-state support and local 2-adic valuation constraints
 - [X] Deliver as a pip Python package
 - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 

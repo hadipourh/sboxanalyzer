@@ -11,6 +11,8 @@ These tests verify the core functionality of S-box Analyzer including:
 - Deterministic propagation analysis
 """
 
+import os
+
 import pytest
 
 # Import the S-box Analyzer
@@ -307,6 +309,79 @@ class TestDifferentialLinearAnalysis:
         
         # The theorem should be satisfied for Ascon
         assert result is True
+
+
+class TestExactPairRelations:
+    """Tests for exact pair-state relation encoding."""
+
+    RUN_SLOW_PAIR_TESTS = os.environ.get("SBOXANALYZER_RUN_SLOW_TESTS") == "1"
+
+    def test_supported_exact_pair_bases(self):
+        """Test that the supported bases are exposed."""
+        assert SboxAnalyzer.supported_exact_pair_bases() == ("quasi", "same", "subset-diff", "ultra-diff")
+
+    def test_exact_pair_transition_table_printcipher(self):
+        """Test exact pair-state relation dimensions for a small 3-bit S-box."""
+        sa = SboxAnalyzer(PRINTcipher)
+        relation = sa.exact_pair_transition_table(input_basis="quasi", output_basis="same")
+
+        assert len(relation) == 64
+        assert len(relation[0]) == 64
+        assert any(weight != 0 for row in relation for weight in row)
+
+    def test_minimized_exact_pair_constraints_star_printcipher(self):
+        """Test fast support encoding for the quasi->same exact pair relation of a 3-bit S-box."""
+        sa = SboxAnalyzer(PRINTcipher)
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
+                                                            output_basis="same",
+                                                            subtable="star",
+                                                            mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) > 0
+
+    def test_minimized_exact_pair_constraints_v2_printcipher(self):
+        """Test fast v2-weighted encoding for the quasi->same exact pair relation of a 3-bit S-box."""
+        sa = SboxAnalyzer(PRINTcipher)
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
+                                                            output_basis="same",
+                                                            subtable=None,
+                                                            weight_model="v2",
+                                                            mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) > 0
+        assert any("p0" in constraint for constraint in milp)
+
+    @pytest.mark.skipif(not RUN_SLOW_PAIR_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow pair-relation regression tests")
+    def test_minimized_exact_pair_constraints_star_present(self):
+        """Regression test for the quasi->same support encoding on PRESENT."""
+        sa = SboxAnalyzer(PRESENT)
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
+                                                            output_basis="same",
+                                                            subtable="star",
+                                                            mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) == 3256, f"Expected 3256 constraints for PRESENT exact support, got {len(milp)}"
+
+    @pytest.mark.skipif(not RUN_SLOW_PAIR_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow pair-relation regression tests")
+    def test_minimized_exact_pair_constraints_v2_present(self):
+        """Regression test for the quasi->same v2-weighted encoding on PRESENT."""
+        sa = SboxAnalyzer(PRESENT)
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
+                                                            output_basis="same",
+                                                            subtable=None,
+                                                            weight_model="v2",
+                                                            mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) == 2997, f"Expected 2997 constraints for PRESENT exact v2, got {len(milp)}"
+        assert any("p0" in constraint for constraint in milp)
 
 
 class TestStaticMethods:
