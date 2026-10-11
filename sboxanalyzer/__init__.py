@@ -979,7 +979,7 @@ class SboxAnalyzer(SBox):
             for ly in range(2**self.output_size()):
                 y = tuple(map(int, list(bin(ly)[2:].zfill(self.output_size()))))
                 key = x + y
-                boolean_func[key] = self.star_lat[lx][ly] ^ reverse
+                boolean_func[key] = self.star_lat[lx][ly] ^ reverse ^ inverse
         boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse ^ inverse
         return boolean_func
 

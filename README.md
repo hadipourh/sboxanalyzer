@@ -51,11 +51,11 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
 
 ## Dependencies
 
-S-box Analyzer requires Python 3.9 or higher and uses [PassageMath](https://github.com/passagemath/passagemath) (modular SageMath) for cryptographic primitives and ESPRESSO for logic minimization.
+S-box Analyzer requires Python 3.10 or higher and uses [PassageMath](https://github.com/passagemath/passagemath) (modular SageMath) for cryptographic primitives and ESPRESSO for logic minimization.
 
 **All dependencies are automatically installed via pip:**
 
-- **PassageMath Standard** (≥10.6.30) - Provides SageMath's cryptographic functions
+- **PassageMath** (≥10.6.30) - The distributions `passagemath-modules`, `passagemath-brial`, `passagemath-repl`, and `passagemath-symbolics`, which provide SageMath's S-box utilities and Boolean polynomial rings; PassageMath Standard contains them as well
 - **ESPRESSO** - Pre-built binaries included for all major platforms (macOS, Linux, Windows)
 
 **Optional (only if pre-built binary doesn't work):**

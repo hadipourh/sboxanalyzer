@@ -228,6 +228,21 @@ class TestLinearAnalysis:
         assert len(cnf) > 0
         assert len(milp) > 0
     
+    def test_minimized_linear_constraints_star_inverse(self):
+        """*-LAT inverse encoding accepts exactly the impossible linear transitions."""
+        sa = SboxAnalyzer(PRESENT)
+        variables = ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"]
+        _, star, _ = sa.minimized_linear_constraints(subtable="star")
+        _, star_inverse, _ = sa.minimized_linear_constraints(subtable="star_inverse")
+        possible = _accepted_points(star, variables)
+        assert (0,) * 8 in possible
+        assert len(possible) == 133
+        assert _accepted_points(star_inverse, variables) == set(itertools.product((0, 1), repeat=8)) - possible
+        # The same relation between the *-DDT and its inverse encoding
+        _, star, _ = sa.minimized_diff_constraints(subtable="star")
+        _, star_inverse, _ = sa.minimized_diff_constraints(subtable="star_inverse")
+        assert _accepted_points(star_inverse, variables) == set(itertools.product((0, 1), repeat=8)) - _accepted_points(star, variables)
+
     def test_minimized_linear_constraints_skinny4(self):
         """Test LAT encoding for SKINNY-4 S-box with expected values from README."""
         sa = SboxAnalyzer(SKINNY_4)

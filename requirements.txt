@@ -1,10 +1,16 @@
 # SboxAnalyzer - S-box Cryptanalysis Tool
 # Requirements for running the S-box analysis toolkit
-# Python >= 3.9 recommended
+# Python >= 3.10 required
 
-# Core dependency: SageMath components for symbolic computation and cryptographic utilities
-# Provides: Boolean algebra, polynomial rings, S-box utilities, and more
-passagemath-standard>=10.6.30
+# Core dependencies (the same as in pyproject.toml): SageMath components for
+# Boolean polynomial rings, S-box utilities, and more
+passagemath-modules>=10.6.30
+passagemath-brial
+passagemath-repl
+passagemath-symbolics
+
+# Optional: only for milp_method="convex_hull" (pip install "sboxanalyzer[hull]")
+passagemath-polyhedra
 
 # Note: Espresso binary for Boolean minimization is included in the package
 # No additional dependencies required!
