@@ -36,6 +36,7 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
     - [Encoding the MPT of PRESENT](#encoding-the-mpt-of-present)
     - [Encoding the MPT of Ascon](#encoding-the-mpt-of-ascon)
   - [Exact Pair-Relation Encoding](#exact-pair-relation-encoding)
+    - [Exact Boomerang Pair-Relation Encoding](#exact-boomerang-pair-relation-encoding)
   - [DLCT Encoding](#dlct-encoding)
     - [Encoding the \*-DLCT of KNOT](#encoding-the--dlct-of-knot)
     - [Encoding the \*-DLCT of Midori](#encoding-the--dlct-of-midori)
@@ -193,6 +194,27 @@ sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
 ```
 
 In this interface, the packed input and output pair states are encoded by `2m` and `2n` binary variables, respectively, where `m` and `n` are the S-box input and output sizes. The option `subtable="star"` returns support-only constraints, while `weight_model="v2"` appends one-hot cost bits that encode the 2-adic valuation class of each non-zero local coefficient.
+
+### Exact Boomerang Pair-Relation Encoding
+
+The same interface is available for the exact boomerang relation of a permutation S-box. For every input pair state it counts, with the signs of the chosen bases, the output pair states whose boomerang quartet returns through the S-box. Restricted to zero value masks, the `quasidifferential`-to-`quasidifferential` table coincides with the BCT.
+
+```python
+sage: from sboxanalyzer import SboxAnalyzer
+sage: from sage.crypto.sboxes import PRESENT
+sage: sa = SboxAnalyzer(PRESENT)
+sage: sa.supported_exact_boomerang_bases()
+('quasidifferential', 'linear', 'subset-difference', 'ultrametric-difference')
+
+sage: cnf, milp, cp = sa.minimized_exact_boomerang_constraints(
+....:     input_basis="quasidifferential",
+....:     output_basis="quasidifferential",
+....:     subtable="star",
+....:     mode=6,
+....: )
+```
+
+The options `subtable` and `weight_model` have the same meaning as for `minimized_exact_pair_constraints`.
 
 ## Convert a Set of Binary Vectors to CNF/MILP Constraints
 
@@ -737,7 +759,9 @@ Sbox Analyzer has been used in the following papers:
 - [X] Encoding LAT
 - [X] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
 - [X] Adding [DLCT, UDLCT, LDLCT and Hadipour et al&#39;s theorem](https://eprint.iacr.org/2024/255)
+- [X] Encoding BCT
 - [X] Encoding exact pair-state support and local 2-adic valuation constraints
+- [X] Encoding exact boomerang pair-state relations
 - [X] Deliver as a pip Python package
 - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 
