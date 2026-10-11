@@ -11,8 +11,11 @@ These tests verify the core functionality of S-box Analyzer including:
 - Deterministic propagation analysis
 """
 
+import itertools
 import os
+import re
 import subprocess
+import sys
 
 import sboxanalyzer
 
@@ -695,3 +698,163 @@ class TestOutputFormats:
         
         # CP constraints should be a string
         assert isinstance(cp, str)
+
+
+def _has_polyhedra():
+    """Whether passagemath-polyhedra, needed by milp_method="convex_hull", is installed."""
+    try:
+        from sage.geometry.polyhedron.constructor import Polyhedron  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+requires_polyhedra = pytest.mark.skipif(not _has_polyhedra(), reason="milp_method=\"convex_hull\" requires passagemath-polyhedra")
+
+
+def _parse_milp_constraint(constraint):
+    """Parse '- a0 + 2 b1 >= -1' into ({'a0': -1, 'b1': 2}, -1)."""
+    lhs, rhs = constraint.split(">=")
+    coefficients, sign, magnitude = {}, 1, 1
+    for token in lhs.split():
+        if token in ("+", "-"):
+            sign = 1 if token == "+" else -1
+        elif token.isdigit():
+            magnitude = int(token)
+        else:
+            coefficients[token] = sign * magnitude
+            sign, magnitude = 1, 1
+    return coefficients, int(rhs)
+
+
+def _accepted_points(constraints, variables):
+    """The binary points satisfying all the given MILP constraints."""
+    rows = [_parse_milp_constraint(constraint) for constraint in constraints]
+    accepted = set()
+    for point in itertools.product((0, 1), repeat=len(variables)):
+        value = dict(zip(variables, point))
+        if all(sum(c * value[v] for v, c in coefficients.items()) >= rhs for coefficients, rhs in rows):
+            accepted.add(point)
+    return accepted
+
+
+class TestConvexHullConstraints:
+    """Tests for the MILP constraints derived from the convex hull (milp_method="convex_hull")."""
+
+    IO_VARIABLES = ["a0", "a1", "a2", "a3", "b0", "b1", "b2", "b3"]
+
+    def test_default_output_is_unchanged(self):
+        """milp_method="espresso" is the default."""
+        sa = SboxAnalyzer(PRESENT)
+        assert sa.minimized_integral_constraints() == sa.minimized_integral_constraints(milp_method="espresso")
+        assert sa.minimized_diff_constraints() == sa.minimized_diff_constraints(milp_method="espresso")
+        assert sa.minimized_linear_constraints() == sa.minimized_linear_constraints(milp_method="espresso")
+
+    @requires_polyhedra
+    def test_only_milp_constraints_change(self):
+        """The SAT clauses and CP constraints are still derived from ESPRESSO."""
+        sa = SboxAnalyzer(PRESENT)
+        cnf, milp, cp = sa.minimized_integral_constraints()
+        hull_cnf, hull_milp, hull_cp = sa.minimized_integral_constraints(milp_method="convex_hull")
+        assert hull_cnf == cnf
+        assert hull_cp == cp
+        assert len(milp) == 41
+        assert len(hull_milp) == 209
+        # The convex hull does not depend on the ESPRESSO mode
+        assert sa.minimized_integral_constraints(mode=2, milp_method="convex_hull")[1] == hull_milp
+
+    @requires_polyhedra
+    def test_integral_constraints_are_exact(self):
+        """A binary point satisfies the convex hull constraints if and only if it is a valid MPT entry."""
+        sa = SboxAnalyzer(PRESENT)
+        mpt = sa.monomial_prediction_table()
+        valid = {tuple(map(int, bin(u)[2:].zfill(4) + bin(v)[2:].zfill(4)))
+                 for u in range(16) for v in range(16) if mpt[u][v] == 1}
+        _, milp, _ = sa.minimized_integral_constraints(milp_method="convex_hull")
+        assert _accepted_points(milp, self.IO_VARIABLES) == valid
+
+    @requires_polyhedra
+    @pytest.mark.parametrize("subtable", [None, "star"])
+    def test_diff_and_linear_constraints_are_exact(self, subtable):
+        """The convex hull and ESPRESSO constraints accept the same binary points."""
+        sa = SboxAnalyzer(GIFT)
+        for method in (sa.minimized_diff_constraints, sa.minimized_linear_constraints):
+            _, milp, _ = method(subtable=subtable)
+            _, hull_milp, _ = method(subtable=subtable, milp_method="convex_hull")
+            variables = sorted({v for constraint in milp + hull_milp for v in _parse_milp_constraint(constraint)[0]})
+            assert _accepted_points(hull_milp, variables) == _accepted_points(milp, variables)
+
+    @requires_polyhedra
+    def test_known_convex_hull(self):
+        """Regression values for the MPT of the 4-bit S-box of ARADI."""
+        sa = SboxAnalyzer([0, 1, 2, 3, 4, 13, 15, 6, 8, 11, 5, 14, 12, 7, 10, 9])
+        _, milp, _ = sa.minimized_integral_constraints(milp_method="convex_hull")
+        assert len(milp) == 110
+        assert "2 a0 + 4 a1 + 2 a2 + a3 - 3 b1 - 2 b2 - b3 >= 0" in milp
+        assert max(abs(c) for constraint in milp for c in _parse_milp_constraint(constraint)[0].values()) == 6
+
+    @requires_polyhedra
+    def test_constraint_format(self):
+        """Convex hull constraints have the format of the other MILP constraints, with integer coefficients."""
+        pattern = re.compile(r"^(- )?(\d+ )?\w+( [+-] (\d+ )?\w+)* >= -?\d+$")
+        sa = SboxAnalyzer(PRESENT)
+        _, milp, _ = sa.minimized_diff_constraints()
+        _, hull_milp, _ = sa.minimized_diff_constraints(milp_method="convex_hull")
+        assert isinstance(hull_milp, list) and len(hull_milp) > 0
+        assert all(pattern.match(constraint) for constraint in milp + hull_milp)
+
+    @requires_polyhedra
+    def test_custom_variables(self):
+        """Custom variable names are used in the convex hull constraints."""
+        sa = SboxAnalyzer(PRINTcipher)
+        names = ["x0", "x1", "x2", "y0", "y1", "y2"]
+        _, milp, _ = sa.minimized_integral_constraints(input_variables=names[:3], output_variables=names[3:],
+                                                       milp_method="convex_hull")
+        _, default_milp, _ = sa.minimized_integral_constraints(milp_method="convex_hull")
+        assert {v for constraint in milp for v in _parse_milp_constraint(constraint)[0]} <= set(names)
+        assert len(milp) == len(default_milp)
+
+    @requires_polyhedra
+    def test_encode_set_of_binary_vectors(self):
+        """Known answers, including sets whose convex hull is not full dimensional."""
+        encode = SboxAnalyzer.encode_set_of_binary_vectors
+        _, milp, _ = encode([(0, 0), (1, 1)], milp_method="convex_hull")
+        assert sorted(milp) == ["- x0 + x1 >= 0", "x0 - x1 >= 0"]
+        _, milp, _ = encode([(1, 0, 1)], milp_method="convex_hull")
+        assert sorted(milp) == ["- x1 >= 0", "x0 >= 1", "x2 >= 1"]
+        even = [(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+        _, milp, _ = encode(even, milp_method="convex_hull")
+        assert len(milp) == 4
+        assert _accepted_points(milp, ["x0", "x1", "x2"]) == set(even)
+        _, milp, _ = encode(list(itertools.product((0, 1), repeat=3)), milp_method="convex_hull")
+        assert milp == []
+
+    def test_invalid_milp_method(self):
+        """An unknown milp_method is rejected."""
+        with pytest.raises(ValueError, match="milp_method"):
+            SboxAnalyzer(PRESENT).minimized_integral_constraints(milp_method="hull")
+        with pytest.raises(ValueError, match="milp_method"):
+            SboxAnalyzer.encode_set_of_binary_vectors([(0, 1), (1, 0)], milp_method="hull")
+
+    def test_too_many_variables(self):
+        """The convex hull is refused for more than convex_hull_max_variables binary variables."""
+        assert SboxAnalyzer.convex_hull_max_variables == 12
+        with pytest.raises(ValueError, match="at most 12 binary variables"):
+            SboxAnalyzer.encode_set_of_binary_vectors([(0,) * 13, (1,) * 13], milp_method="convex_hull")
+        # The DDT of Ascon needs 10 + 3 binary variables
+        sa = SboxAnalyzer(Ascon)
+        with pytest.raises(ValueError, match="at most 12 binary variables"):
+            sa.minimized_diff_constraints(milp_method="convex_hull")
+        # The constraints derived from ESPRESSO are not limited
+        cnf, milp, cp = sa.minimized_diff_constraints()
+        assert len(milp) > 0
+
+    def test_missing_polyhedra(self, monkeypatch):
+        """A clear error is raised if passagemath-polyhedra is not installed."""
+        monkeypatch.setitem(sys.modules, "sage.geometry.polyhedron.constructor", None)
+        sa = SboxAnalyzer(PRESENT)
+        with pytest.raises(ImportError, match="passagemath-polyhedra"):
+            sa.minimized_integral_constraints(milp_method="convex_hull")
+        # The default method does not need it
+        cnf, milp, cp = sa.minimized_integral_constraints()
+        assert len(milp) == 41

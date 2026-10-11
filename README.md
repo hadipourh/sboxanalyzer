@@ -35,6 +35,7 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
   - [MPT Encoding](#mpt-encoding)
     - [Encoding the MPT of PRESENT](#encoding-the-mpt-of-present)
     - [Encoding the MPT of Ascon](#encoding-the-mpt-of-ascon)
+  - [Convex Hull Constraints for MILP](#convex-hull-constraints-for-milp)
   - [Exact Pair-Relation Encoding](#exact-pair-relation-encoding)
     - [Exact Boomerang Pair-Relation Encoding](#exact-boomerang-pair-relation-encoding)
   - [DLCT Encoding](#dlct-encoding)
@@ -61,12 +62,21 @@ S-box Analyzer requires Python 3.9 or higher and uses [PassageMath](https://gith
 - **CMake** - For building ESPRESSO from source as fallback
 - **C compiler** (gcc/clang/MSVC) - For building ESPRESSO from source
 
+**Optional (only for the [convex hull constraints](#convex-hull-constraints-for-milp)):**
+- **passagemath-polyhedra** - For `milp_method="convex_hull"`; it is part of PassageMath Standard
+
 ## Installation
 
 Install directly from PyPI using pip:
 
 ```bash
 pip install sboxanalyzer
+```
+
+To also install the optional dependency of the [convex hull constraints](#convex-hull-constraints-for-milp):
+
+```bash
+pip install "sboxanalyzer[hull]"
 ```
 
 Or install from source:
@@ -676,6 +686,33 @@ Input:	a0||a1||a2||a3||a4; a0: msb
 Output:	b0||b1||b2||b3||b4; b0: msb
 ```
 
+## Convex Hull Constraints for MILP
+
+By default, the MILP constraints are the clauses minimized by ESPRESSO, each written as a linear inequality. With `milp_method="convex_hull"`, the MILP constraints are instead the facets of the convex hull of the valid points:
+
+```python
+sage: from sboxanalyzer import *
+sage: from sage.crypto.sboxes import PRESENT as sb
+sage: sa = SboxAnalyzer(sb)
+sage: cnf, milp, cp = sa.minimized_integral_constraints(milp_method="convex_hull")
+
+Number of constraints: 41
+Number of convex hull constraints: 209
+Input: a0||a1||a2||a3; msb: a0
+Output: b0||b1||b2||b3; msb: b0
+sage: milp[:2]
+['- 2 a0 - a1 - a2 - 2 a3 + 5 b0 + 5 b1 + 5 b2 + 2 b3 >= 0',
+ '- 2 a0 - a1 - a2 + 3 b0 + 3 b1 + 3 b2 + 2 b3 >= 0']
+```
+
+Both sets of constraints accept exactly the same binary points. They differ in their linear relaxation: the convex hull gives the tightest relaxation that an exact set of linear inequalities can have, at the cost of more constraints. A tighter relaxation can help a MILP solver, in particular when it has to prove that a model is infeasible, whereas more constraints make each solver iteration more expensive. Which one is faster depends on the model, so it is worth comparing both.
+
+- Only the MILP constraints (the second output) change. The SAT clauses and CP constraints are still derived from ESPRESSO, and `mode` only affects those.
+- The coefficients are integers that are not necessarily in $\{-1, 1\}$. The bounds $0 \leq x \leq 1$ are not included, since the variables are supposed to be binary.
+- It is supported by `minimized_diff_constraints`, `minimized_linear_constraints`, `minimized_integral_constraints`, and `encode_set_of_binary_vectors`.
+- It requires `passagemath-polyhedra`, which is part of PassageMath Standard and can also be installed using `pip install "sboxanalyzer[hull]"`.
+- It is limited to 12 binary variables (`SboxAnalyzer.convex_hull_max_variables`), which is enough for the DDT, LAT, and MPT of the common 4-bit S-boxes. The number of facets grows quickly with the number of variables: the convex hull of the MPT of PRESENT has 209 facets, whereas that of its DDT (with the probability variables) has 1645.
+
 ## DLCT Encoding
 
 Here, we show how to encode the DLCT of S-boxes.
@@ -762,6 +799,7 @@ Sbox Analyzer has been used in the following papers:
 - [X] Encoding BCT
 - [X] Encoding exact pair-state support and local 2-adic valuation constraints
 - [X] Encoding exact boomerang pair-state relations
+- [X] Deriving MILP constraints from the convex hull
 - [X] Deliver as a pip Python package
 - [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
 

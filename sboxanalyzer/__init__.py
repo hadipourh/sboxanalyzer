@@ -154,6 +154,8 @@ class SboxAnalyzer(SBox):
     """
 
     sbox_counter = 0
+    # Maximum number of binary variables supported by milp_method="convex_hull"
+    convex_hull_max_variables = 12
 
     def __init__(self, lookuptable):
         """
@@ -424,6 +426,86 @@ class SboxAnalyzer(SBox):
         cp_constraints =  "\n/\\\n".join(milp_constraints)
         return (sat_clauses, milp_constraints, cp_constraints)
 
+    @staticmethod
+    def _check_milp_method(milp_method, number_of_variables):
+        """
+        Check the method chosen for deriving the MILP constraints
+
+        :param milp_method str: "espresso" or "convex_hull"
+        :param number_of_variables int: number of binary variables of the encoded relation
+        """
+
+        valid_values_for_milp_method = ["espresso", "convex_hull"]
+        if milp_method not in valid_values_for_milp_method:
+            raise ValueError("Invalid value for milp_method! milp_method must be in {0}.".format(valid_values_for_milp_method))
+        if milp_method == "convex_hull":
+            if number_of_variables > SboxAnalyzer.convex_hull_max_variables:
+                raise ValueError("milp_method=\"convex_hull\" supports at most {0} binary variables, but {1} are required.".format(
+                    SboxAnalyzer.convex_hull_max_variables, number_of_variables))
+            try:
+                from sage.geometry.polyhedron.constructor import Polyhedron
+            except ImportError as error:
+                raise ImportError("milp_method=\"convex_hull\" requires passagemath-polyhedra. "
+                                  "Install it using: pip install \"sboxanalyzer[hull]\"") from error
+
+    @staticmethod
+    def _convex_hull_constraints(boolean_function, reverse, variables):
+        """
+        Describe the valid points of a Boolean function by the facets of their convex hull
+
+        A point p is valid if boolean_function[p] ^ reverse = 1, i.e., the valid points are exactly
+        the points accepted by the constraints derived from ESPRESSO. A binary point satisfies the
+        returned inequalities if and only if it is valid, and their linear relaxation is the convex
+        hull of the valid points, which is the tightest relaxation an exact set of linear inequalities
+        can have. The inequalities are in the format of the MILP constraints derived from ESPRESSO,
+        except that their coefficients are integers that are not necessarily in {-1, 1}.
+        The bounds 0 <= x <= 1 are not included, since the variables are supposed to be binary.
+
+        :param boolean_function dict: a dictionary mapping binary tuples to 0 or 1
+        :param reverse int: 1 if boolean_function is the complement of the encoded relation, and 0 otherwise
+        :param variables list: a list of strings specifying the variables
+        :return: a list of strings including the MILP constraints
+        """
+
+        from math import gcd, lcm
+        from sage.geometry.polyhedron.constructor import Polyhedron
+        from sage.rings.rational_field import QQ
+
+        valid_points = [point for point, value in boolean_function.items() if (value ^ reverse) == 1]
+        if len(valid_points) == 0:
+            raise ValueError("The set of valid points is empty.")
+        polyhedron = Polyhedron(vertices=valid_points, base_ring=QQ, backend="ppl")
+
+        def integer_row(vector):
+            # (b, c0, c1, ...) stands for b + c0*x0 + c1*x1 + ...; scale it to coprime integers
+            scale = lcm(*[int(QQ(c).denominator()) for c in vector])
+            row = [int(QQ(c) * scale) for c in vector]
+            divisor = gcd(*row)
+            return tuple(c // divisor for c in row)
+
+        # Each row stands for an inequality b + c0*x0 + c1*x1 + ... >= 0; an equation gives two rows
+        rows = [integer_row(inequality.vector()) for inequality in polyhedron.inequalities()]
+        for equation in polyhedron.equations():
+            row = integer_row(equation.vector())
+            rows.extend([row, tuple(-c for c in row)])
+        # Drop the rows satisfied by every point of the unit cube, i.e., the bounds 0 <= x <= 1
+        rows = set(row for row in rows if row[0] + sum(c for c in row[1:] if c < 0) < 0)
+        milp_constraints = []
+        for row in sorted(rows):
+            lp = []
+            for coefficient, variable in zip(row[1:], variables):
+                if coefficient != 0:
+                    term = variable if abs(coefficient) == 1 else "{0} {1}".format(abs(coefficient), variable)
+                    lp.append(" {0} {1}".format("-" if coefficient < 0 else "+", term))
+            lp_constraint = "".join(lp) + " >= {}".format(-row[0])
+            if lp_constraint[0:3] == " + ":
+                lp_constraint = lp_constraint[3:]
+            else:
+                lp_constraint = lp_constraint[1:]
+            milp_constraints.append(lp_constraint)
+        print("Number of convex hull constraints: {0}".format(len(milp_constraints)))
+        return milp_constraints
+
     ###############################################################################################################
     ###############################################################################################################
     ###############################################################################################################
@@ -483,9 +565,14 @@ class SboxAnalyzer(SBox):
         return (sat_clauses, milp_constraints, cp_constraints)
     
     @staticmethod
-    def encode_set_of_binary_vectors(set_of_binary_vectors, input_variables=None, mode=6):
+    def encode_set_of_binary_vectors(set_of_binary_vectors, input_variables=None, mode=6, milp_method="espresso"):
         """
         Encode the set of binary vectors into MILP/SAT constraints
+
+        If milp_method="convex_hull", the MILP constraints (the second output) are the facets of the
+        convex hull of the valid points instead of the inequalities derived from ESPRESSO, whereas
+        the SAT clauses and CP constraints are still derived from ESPRESSO. This option requires
+        passagemath-polyhedra and supports at most convex_hull_max_variables binary variables.
         """
 
         if mode in [1, 3, 5, 6, 7]:
@@ -501,6 +588,7 @@ class SboxAnalyzer(SBox):
         num_of_bits = len(set_of_binary_vectors[0])
         if not all([num_of_bits == len(v) for v in set_of_binary_vectors]):
             raise ValueError("All elements of the set must have the same length.")
+        SboxAnalyzer._check_milp_method(milp_method, num_of_bits)
         
         boolean_function = dict()
         for v in range(2**num_of_bits):
@@ -527,6 +615,8 @@ class SboxAnalyzer(SBox):
         sat_clauses, milp_constraints, cp_constraints = SboxAnalyzer._parse_the_output_of_espresso(filename=output_file,
                                                                                     alphabet=input_variables)
         print("Number of constraints: {}".format(len(milp_constraints)))
+        if milp_method == "convex_hull":
+            milp_constraints = SboxAnalyzer._convex_hull_constraints(boolean_function, reverse, input_variables)
         print("Variables: {}; msb: {}".format("||".join(input_variables), input_variables[0]))
         os.remove(input_file)
         os.remove(output_file)
@@ -720,12 +810,17 @@ class SboxAnalyzer(SBox):
                     boolean_function[key] = reverse
         return boolean_function
 
-    def minimized_diff_constraints(self, mode=6, subtable=None, cryptosmt_compatible=False, input_variables=None, output_variables=None, cost_variables=None):
+    def minimized_diff_constraints(self, mode=6, subtable=None, cryptosmt_compatible=False, input_variables=None, output_variables=None, cost_variables=None, milp_method="espresso"):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
         representation of the function. Following that, it interprets ESPRESSO's output and 
         converts the simplified representation into the language recognized by MILP and SAT solvers.
+
+        If milp_method="convex_hull", the MILP constraints (the second output) are the facets of the
+        convex hull of the valid points instead of the inequalities derived from ESPRESSO, whereas
+        the SAT clauses and CP constraints are still derived from ESPRESSO. This option requires
+        passagemath-polyhedra and supports at most convex_hull_max_variables binary variables.
         """
         
         if self._data_required_for_differential_analysis is None:
@@ -788,6 +883,7 @@ class SboxAnalyzer(SBox):
             else:
                 self.diff_objective = [f"{self._diff_weights[i]:0.04f} {cost_variables[i]}" for i in range(self._len_diff_spectrum)]
             self.diff_objective = "\nWeight: {}".format(" + ".join(self.diff_objective))
+        self._check_milp_method(milp_method, len(input_output_variables))
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
                                 input_output_variables=input_output_variables)
@@ -800,6 +896,8 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         # print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
+        if milp_method == "convex_hull":
+            milp_constraints = self._convex_hull_constraints(boolean_function, reverse, input_output_variables)
         variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
         variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
         print("{}".format(variables_mapping + self.diff_objective))
@@ -948,12 +1046,17 @@ class SboxAnalyzer(SBox):
                     boolean_function[key] = reverse
         return boolean_function
 
-    def minimized_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None, cost_variables=None):
+    def minimized_linear_constraints(self, mode=6, subtable=None, input_variables=None, output_variables=None, cost_variables=None, milp_method="espresso"):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
         representation of the function. Following that, it interprets ESPRESSO's output and 
         converts the simplified representation into the language recognized by MILP and SAT solvers.
+
+        If milp_method="convex_hull", the MILP constraints (the second output) are the facets of the
+        convex hull of the valid points instead of the inequalities derived from ESPRESSO, whereas
+        the SAT clauses and CP constraints are still derived from ESPRESSO. This option requires
+        passagemath-polyhedra and supports at most convex_hull_max_variables binary variables.
         """
         
         if self._data_required_for_linear_analysis is None:
@@ -998,6 +1101,7 @@ class SboxAnalyzer(SBox):
             else:
                 self.linear_objective = "0"
             self.linear_objective = "\nWeight: {}".format(" + ".join(self.linear_objective))
+        self._check_milp_method(milp_method, len(input_output_variables))
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
                                 input_output_variables=input_output_variables)
@@ -1010,6 +1114,8 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         # print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
+        if milp_method == "convex_hull":
+            milp_constraints = self._convex_hull_constraints(boolean_function, reverse, input_output_variables)
         variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
         variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
         print("{}".format(variables_mapping + self.linear_objective))
@@ -1052,12 +1158,17 @@ class SboxAnalyzer(SBox):
         boolean_func[tuple([0]*self.input_size() + [0]*self.output_size())] = 1 ^ reverse
         return boolean_func
 
-    def minimized_integral_constraints(self, mode=6, input_variables=None, output_variables=None):
+    def minimized_integral_constraints(self, mode=6, input_variables=None, output_variables=None, milp_method="espresso"):
         """
         This method takes a given Boolean function and records its truth table in a file, 
         adhering to the ESPRESSO input format. It then invokes ESPRESSO to obtain a minimized 
         representation of the function. Following that, it interprets ESPRESSO's output and 
         converts the simplified representation into the language recognized by MILP and SAT solvers.
+
+        If milp_method="convex_hull", the MILP constraints (the second output) are the facets of the
+        convex hull of the valid points instead of the inequalities derived from ESPRESSO, whereas
+        the SAT clauses and CP constraints are still derived from ESPRESSO. This option requires
+        passagemath-polyhedra and supports at most convex_hull_max_variables binary variables.
         """
         
         if self._data_required_for_integral_analysis is None:
@@ -1082,6 +1193,7 @@ class SboxAnalyzer(SBox):
         self.integral_objective = ""
         input_output_variables = input_variables + output_variables
         boolean_function = self._mpt_to_boolean_function(reverse=reverse)
+        self._check_milp_method(milp_method, len(input_output_variables))
         self._write_truth_table(filename=self.truth_table_filename, 
                                 boolean_function=boolean_function, 
                                 input_output_variables=input_output_variables)
@@ -1094,6 +1206,8 @@ class SboxAnalyzer(SBox):
         os.remove(self.truth_table_filename)        
         # print("Time used to simplify the constraints: {:0.02f} seconds".format(elapsed_time))
         print("Number of constraints: {0}".format(len(milp_constraints)))
+        if milp_method == "convex_hull":
+            milp_constraints = self._convex_hull_constraints(boolean_function, reverse, input_output_variables)
         variables_mapping = "Input: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
         variables_mapping += "\nOutput: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
         print("{}".format(variables_mapping + self.integral_objective))
