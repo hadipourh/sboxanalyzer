@@ -318,22 +318,22 @@ class TestExactPairRelations:
 
     def test_supported_exact_pair_bases(self):
         """Test that the supported bases are exposed."""
-        assert SboxAnalyzer.supported_exact_pair_bases() == ("quasi", "same", "subset-diff", "ultra-diff")
+        assert SboxAnalyzer.supported_exact_pair_bases() == ("quasidifferential", "linear", "subset-difference", "ultrametric-difference")
 
     def test_exact_pair_transition_table_printcipher(self):
         """Test exact pair-state relation dimensions for a small 3-bit S-box."""
         sa = SboxAnalyzer(PRINTcipher)
-        relation = sa.exact_pair_transition_table(input_basis="quasi", output_basis="same")
+        relation = sa.exact_pair_transition_table(input_basis="quasidifferential", output_basis="linear")
 
         assert len(relation) == 64
         assert len(relation[0]) == 64
         assert any(weight != 0 for row in relation for weight in row)
 
     def test_minimized_exact_pair_constraints_star_printcipher(self):
-        """Test fast support encoding for the quasi->same exact pair relation of a 3-bit S-box."""
+        """Test fast support encoding for the quasidifferential->linear exact pair relation of a 3-bit S-box."""
         sa = SboxAnalyzer(PRINTcipher)
-        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
-                                                            output_basis="same",
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasidifferential",
+                                                            output_basis="linear",
                                                             subtable="star",
                                                             mode=6)
 
@@ -342,10 +342,10 @@ class TestExactPairRelations:
         assert len(milp) > 0
 
     def test_minimized_exact_pair_constraints_v2_printcipher(self):
-        """Test fast v2-weighted encoding for the quasi->same exact pair relation of a 3-bit S-box."""
+        """Test fast v2-weighted encoding for the quasidifferential->linear exact pair relation of a 3-bit S-box."""
         sa = SboxAnalyzer(PRINTcipher)
-        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
-                                                            output_basis="same",
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasidifferential",
+                                                            output_basis="linear",
                                                             subtable=None,
                                                             weight_model="v2",
                                                             mode=6)
@@ -357,10 +357,10 @@ class TestExactPairRelations:
 
     @pytest.mark.skipif(not RUN_SLOW_PAIR_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow pair-relation regression tests")
     def test_minimized_exact_pair_constraints_star_present(self):
-        """Regression test for the quasi->same support encoding on PRESENT."""
+        """Regression test for the quasidifferential->linear support encoding on PRESENT."""
         sa = SboxAnalyzer(PRESENT)
-        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
-                                                            output_basis="same",
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasidifferential",
+                                                            output_basis="linear",
                                                             subtable="star",
                                                             mode=6)
 
@@ -370,10 +370,10 @@ class TestExactPairRelations:
 
     @pytest.mark.skipif(not RUN_SLOW_PAIR_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow pair-relation regression tests")
     def test_minimized_exact_pair_constraints_v2_present(self):
-        """Regression test for the quasi->same v2-weighted encoding on PRESENT."""
+        """Regression test for the quasidifferential->linear v2-weighted encoding on PRESENT."""
         sa = SboxAnalyzer(PRESENT)
-        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasi",
-                                                            output_basis="same",
+        cnf, milp, cp = sa.minimized_exact_pair_constraints(input_basis="quasidifferential",
+                                                            output_basis="linear",
                                                             subtable=None,
                                                             weight_model="v2",
                                                             mode=6)

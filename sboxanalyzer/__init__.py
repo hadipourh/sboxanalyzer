@@ -1461,7 +1461,7 @@ class SboxAnalyzer(SBox):
 
         return supported_pair_relation_bases()
 
-    def _compute_exact_pair_relation_data(self, input_basis="quasi", output_basis="same"):
+    def _compute_exact_pair_relation_data(self, input_basis="quasidifferential", output_basis="linear"):
         """
         Compute the exact local relation between packed pair states.
         """
@@ -1473,28 +1473,28 @@ class SboxAnalyzer(SBox):
                                                 input_basis=input_basis,
                                                 output_basis=output_basis)
 
-    def exact_pair_transition_table(self, input_basis="quasi", output_basis="same"):
+    def exact_pair_transition_table(self, input_basis="quasidifferential", output_basis="linear"):
         """
         Return the exact local relation over packed pair states.
         """
 
         return self._compute_exact_pair_relation_data(input_basis, output_basis).relation
 
-    def get_exact_pair_relation_spectrum(self, input_basis="quasi", output_basis="same"):
+    def get_exact_pair_transition_spectrum(self, input_basis="quasidifferential", output_basis="linear"):
         """
         Return the non-zero integer spectrum of an exact pair-state relation.
         """
 
         return list(self._compute_exact_pair_relation_data(input_basis, output_basis).weight_spectrum)
 
-    def get_exact_pair_relation_v2_spectrum(self, input_basis="quasi", output_basis="same"):
+    def get_exact_pair_transition_v2_spectrum(self, input_basis="quasidifferential", output_basis="linear"):
         """
         Return the 2-adic valuation spectrum of an exact pair-state relation.
         """
 
         return list(self._compute_exact_pair_relation_data(input_basis, output_basis).v2_spectrum)
 
-    def compute_star_exact_pair_transition_table(self, input_basis="quasi", output_basis="same", reverse=1):
+    def compute_star_exact_pair_transition_table(self, input_basis="quasidifferential", output_basis="linear", reverse=1):
         """
         Generate the 0/1 support table of an exact pair-state relation.
         """
@@ -1557,7 +1557,7 @@ class SboxAnalyzer(SBox):
                 boolean_function[key] = boolean_function.get(key, 0) ^ 1
         return boolean_function
 
-    def minimized_exact_pair_constraints(self, input_basis="quasi", output_basis="same", mode=6,
+    def minimized_exact_pair_constraints(self, input_basis="quasidifferential", output_basis="linear", mode=6,
                                          subtable="star", weight_model=None,
                                          input_variables=None, output_variables=None, cost_variables=None):
         """

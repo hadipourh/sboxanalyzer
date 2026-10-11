@@ -167,25 +167,25 @@ Interpretation of the outputs:
 
 S-box Analyzer can also derive and minimize exact local relations on packed pair states. This is useful when the local object is not a DDT, LAT, or DLCT entry, but an exact relation between two basis expansions built directly from the S-box lookup table.
 
-The public API mirrors the existing DDT and LAT interfaces: instantiate `SboxAnalyzer` from the lookup table, choose the input and output bases, then ask for either support constraints or a weighted encoding.
+The public API mirrors the existing DDT and LAT interfaces: instantiate `SboxAnalyzer` from the lookup table, choose the input and output bases, then ask for either support constraints or a weighted encoding. The bases are named after the coordinates they use on a packed pair state: `quasidifferential` (a character on the value and one fixed difference), `linear` (characters on both the value and the difference, i.e. linear coordinates on pairs of state values), and the two ultrametric variants `ultrametric-difference` and `subset-difference` (a character on the value with ultrametric or subset-indicator coordinates on the difference).
 
 ```python
 sage: from sboxanalyzer import SboxAnalyzer
 sage: from sage.crypto.sboxes import PRESENT
 sage: sa = SboxAnalyzer(PRESENT)
 sage: sa.supported_exact_pair_bases()
-('quasi', 'same', 'subset-diff', 'ultra-diff')
+('quasidifferential', 'linear', 'subset-difference', 'ultrametric-difference')
 
 sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
-....:     input_basis="quasi",
-....:     output_basis="same",
+....:     input_basis="quasidifferential",
+....:     output_basis="linear",
 ....:     subtable="star",
 ....:     mode=6,
 ....: )
 
 sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
-....:     input_basis="quasi",
-....:     output_basis="same",
+....:     input_basis="quasidifferential",
+....:     output_basis="linear",
 ....:     subtable=None,
 ....:     weight_model="v2",
 ....:     mode=6,

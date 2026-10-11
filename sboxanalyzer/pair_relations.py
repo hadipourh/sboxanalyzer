@@ -4,7 +4,18 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
-PAIR_RELATION_BASES = ("quasi", "same", "subset-diff", "ultra-diff")
+# A packed pair state carries a value mask in its low word and a difference (or
+# difference mask) in its high word.  The supported bases are
+#   quasidifferential      : character on the value, indicator of one fixed
+#                            difference (the quasidifferential basis of Beyne
+#                            and Rijmen)
+#   linear                 : characters on both the value and the difference
+#                            (linear coordinates on pairs of state values)
+#   subset-difference      : character on the value, subset indicator on the
+#                            difference (inverse of the ultrametric basis)
+#   ultrametric-difference : character on the value, Moebius-signed subset
+#                            indicator on the difference (ultrametric basis)
+PAIR_RELATION_BASES = ("quasidifferential", "linear", "subset-difference", "ultrametric-difference")
 
 
 @dataclass(frozen=True)
@@ -60,18 +71,18 @@ def _ultrametric_sign(left, right):
 
 def _evaluate_pair_basis(name, packed_state, value, diff, word_size):
     first, second = _unpack_pair_state(packed_state, word_size)
-    if name == "quasi":
+    if name == "quasidifferential":
         if diff != second:
             return 0
         return -1 if _dot_product(first, value) else 1
-    if name == "same":
+    if name == "linear":
         return -1 if (_dot_product(first, value) ^ _dot_product(second, diff)) else 1
-    if name == "subset-diff":
+    if name == "subset-difference":
         if not _bitwise_leq(diff, second):
             return 0
         sign = _ultrametric_sign(second, diff)
         return -sign if _dot_product(first, value) else sign
-    if name == "ultra-diff":
+    if name == "ultrametric-difference":
         if not _bitwise_leq(diff, second):
             return 0
         return -1 if _dot_product(first, value) else 1
@@ -80,13 +91,13 @@ def _evaluate_pair_basis(name, packed_state, value, diff, word_size):
 
 def _enumerate_pair_basis_support(name, packed_state, word_size):
     symbol_values = 1 << word_size
-    if name == "quasi":
+    if name == "quasidifferential":
         value_mask, diff = _unpack_pair_state(packed_state, word_size)
         return tuple(
             (value, diff, -1 if _dot_product(value_mask, value) else 1)
             for value in range(symbol_values)
         )
-    if name == "same":
+    if name == "linear":
         support = []
         value_mask, diff_mask = _unpack_pair_state(packed_state, word_size)
         for value in range(symbol_values):
@@ -96,7 +107,7 @@ def _enumerate_pair_basis_support(name, packed_state, word_size):
                     (value, diff, -1 if (value_parity ^ _dot_product(diff_mask, diff)) else 1)
                 )
         return tuple(support)
-    if name == "subset-diff":
+    if name == "subset-difference":
         support = []
         value_mask, diff_bound = _unpack_pair_state(packed_state, word_size)
         for value in range(symbol_values):
@@ -105,7 +116,7 @@ def _enumerate_pair_basis_support(name, packed_state, word_size):
                 if _bitwise_leq(diff, diff_bound):
                     support.append((value, diff, value_sign))
         return tuple(support)
-    if name == "ultra-diff":
+    if name == "ultrametric-difference":
         support = []
         value_mask, diff_bound = _unpack_pair_state(packed_state, word_size)
         for value in range(symbol_values):
@@ -118,7 +129,7 @@ def _enumerate_pair_basis_support(name, packed_state, word_size):
 
 
 @lru_cache(maxsize=None)
-def compute_exact_pair_relation_data(lookup_table, input_size, output_size, input_basis="quasi", output_basis="same"):
+def compute_exact_pair_relation_data(lookup_table, input_size, output_size, input_basis="quasidifferential", output_basis="linear"):
     """Compute the exact local relation between packed pair states for one S-box."""
 
     input_basis = _validate_pair_basis(input_basis)
