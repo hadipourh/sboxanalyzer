@@ -74,6 +74,7 @@ __version__ = "0.0.2"
 import subprocess
 import os
 import time
+import tempfile
 # Optimized imports: only import what we actually need from SageMath
 from sage.crypto.sboxes import SBox
 from sage.rings.polynomial.pbori.pbori import BooleanPolynomialRing
@@ -83,6 +84,10 @@ from sage.misc.flatten import flatten
 import itertools
 from random import randint
 from .espresso_loader import get_espresso_path_cached
+from .boomerang_pair_relations import (
+    compute_exact_boomerang_relation_data,
+    supported_boomerang_relation_bases,
+)
 from .pair_relations import (
     compute_exact_pair_relation_data,
     pair_state_to_bits,
@@ -192,6 +197,17 @@ class SboxAnalyzer(SBox):
             formatted_row = [str(value).rjust(width) for value, width in zip(row, column_widths)]
             print(" ".join(formatted_row))
 
+    @staticmethod
+    def _new_temp_file_pair():
+        tmp_dir = os.path.join(os.getcwd(), 'tmp')
+        if not os.path.exists(tmp_dir):
+            os.makedirs(tmp_dir)
+        truth_fd, truth_path = tempfile.mkstemp(prefix='tt_', suffix='.txt', dir=tmp_dir)
+        output_fd, output_path = tempfile.mkstemp(prefix='stt_', suffix='.txt', dir=tmp_dir)
+        os.close(truth_fd)
+        os.close(output_fd)
+        return truth_path, output_path
+
     def monomial_prediction_table(self):
         """
         Compute the Monomial Prediction Table (MPT) based on [HE22]:
@@ -278,6 +294,22 @@ class SboxAnalyzer(SBox):
         with open(filename, "w") as fileobj:
             fileobj.write(file_contents)
             fileobj.write(".e\n")
+
+    @staticmethod
+    def _write_sparse_truth_table(filename, input_output_vectors, input_output_variables):
+        """
+        Write a sparse ON-set PLA for ESPRESSO.
+        """
+
+        with open(filename, "w") as fileobj:
+            fileobj.write(f".i {len(input_output_variables)}\n")
+            fileobj.write(".o 1\n")
+            fileobj.write(".type f\n")
+            fileobj.write(".ilb {0}\n".format(" ".join(input_output_variables)))
+            fileobj.write(".ob F\n")
+            for vector in input_output_vectors:
+                fileobj.write("{0}1\n".format("".join(map(str, vector))))
+            fileobj.write(".e\n")
     
     @staticmethod
     def simplify_by_espresso(input_file, output_file, mode):
@@ -302,9 +334,40 @@ class SboxAnalyzer(SBox):
                             ["-Dmany", "-estrong", "-epos", "-s", "-t", "-of"],    # 6 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
                             ["-Dmany", "-efast", "-epos", "-s", "-t", "-of"]]      # 7 ON-SET :*  Derived constraints exclude point p such that f(p) = 1]
 
+        fallback_modes = {
+            5: 1,
+            6: 1,
+            7: 3,
+        }
+
+        def _run_espresso(candidate_mode):
+            with open(output_file, 'w') as fileobj:
+                return subprocess.run(
+                    [ESPRESO_BIN_PATH, *espresso_options[candidate_mode], input_file],
+                    stdout=fileobj,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+
         # Best options (not always), in terms of optimality: 5, then 6, then 7, then 1 (6 is good and fast enough in cases 5 is too slow)
-        with open(output_file, 'w') as fileobj:
-            subprocess.call([ESPRESO_BIN_PATH, *espresso_options[mode], input_file], stdout=fileobj)
+        attempted_modes = [mode]
+        result = _run_espresso(mode)
+        if result.returncode != 0 and mode in fallback_modes:
+            fallback_mode = fallback_modes[mode]
+            attempted_modes.append(fallback_mode)
+            result = _run_espresso(fallback_mode)
+        if result.returncode != 0:
+            stderr = (result.stderr or '').strip()
+            raise RuntimeError(
+                "Espresso failed while simplifying {0}; attempted modes {1}; final return code {2}. "
+                "Partial output was left in {3}. {4}".format(
+                    input_file,
+                    attempted_modes,
+                    result.returncode,
+                    output_file,
+                    stderr or "No stderr output was captured.",
+                )
+            )
         
     @staticmethod
     def _parse_the_output_of_espresso(filename, alphabet):
@@ -320,14 +383,22 @@ class SboxAnalyzer(SBox):
             espresso_output = fileobj.readlines()        
         milp_constraints = []
         sat_clauses = []
-        starting_point = 0
-        end_point = 0
+        starting_point = None
+        end_point = None
         for i in range(len(espresso_output)):
             if ".p" in espresso_output[i]:
                 starting_point = i + 1
                 # number_of_constraints = espresso_output[i].split(" ")[1]
             if ".e" in espresso_output[i]:
                 end_point = i
+        if starting_point is None or end_point is None or end_point < starting_point:
+            preview = "".join(espresso_output[:20]).strip()
+            raise RuntimeError(
+                "Incomplete Espresso output in {0}; missing .p/.e markers. Preview:\n{1}".format(
+                    filename,
+                    preview,
+                )
+            )
         for l in espresso_output[starting_point:end_point]:
             line = l[0:len(alphabet)]
             orclause = []
@@ -1625,6 +1696,195 @@ class SboxAnalyzer(SBox):
             else:
                 self.exact_pair_objective = "\nV2 cost: 0"
 
+        truth_table_filename, simplified_truth_table_filename = self._new_temp_file_pair()
+        self._write_truth_table(filename=truth_table_filename,
+                                boolean_function=boolean_function,
+                                input_output_variables=input_output_variables)
+        self.simplify_by_espresso(input_file=truth_table_filename,
+                      output_file=simplified_truth_table_filename,
+                                  mode=mode)
+        sat_clauses, milp_constraints, cp_constraints = self._parse_the_output_of_espresso(filename=simplified_truth_table_filename,
+                                                                                            alphabet=input_output_variables)
+        os.remove(simplified_truth_table_filename)
+        os.remove(truth_table_filename)
+        print("Number of constraints: {0}".format(len(milp_constraints)))
+        variables_mapping = "Input pair-state: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput pair-state: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.exact_pair_objective))
+        return sat_clauses, milp_constraints, cp_constraints
+
+    @staticmethod
+    def supported_exact_boomerang_bases():
+        """
+        Return the names of the supported exact boomerang pair-state bases.
+        """
+
+        return supported_boomerang_relation_bases()
+
+    def _compute_exact_boomerang_relation_data(self, input_basis="quasidifferential", output_basis="quasidifferential"):
+        """
+        Compute the exact local boomerang relation between packed pair states.
+        """
+
+        lookup_table = tuple(int(self[index]) for index in range(2**self.input_size()))
+        return compute_exact_boomerang_relation_data(lookup_table=lookup_table,
+                                                     input_size=self.input_size(),
+                                                     output_size=self.output_size(),
+                                                     input_basis=input_basis,
+                                                     output_basis=output_basis)
+
+    def exact_boomerang_transition_table(self, input_basis="quasidifferential", output_basis="quasidifferential"):
+        """
+        Return the exact local boomerang relation over packed pair states.
+        """
+
+        return self._compute_exact_boomerang_relation_data(input_basis, output_basis).relation
+
+    def get_exact_boomerang_transition_spectrum(self, input_basis="quasidifferential", output_basis="quasidifferential"):
+        """
+        Return the non-zero integer spectrum of an exact boomerang pair-state relation.
+        """
+
+        return list(self._compute_exact_boomerang_relation_data(input_basis, output_basis).weight_spectrum)
+
+    def get_exact_boomerang_transition_v2_spectrum(self, input_basis="quasidifferential", output_basis="quasidifferential"):
+        """
+        Return the 2-adic valuation spectrum of an exact boomerang pair-state relation.
+        """
+
+        return list(self._compute_exact_boomerang_relation_data(input_basis, output_basis).v2_spectrum)
+
+    def compute_star_exact_boomerang_transition_table(self, input_basis="quasidifferential", output_basis="quasidifferential", reverse=1):
+        """
+        Generate the 0/1 support table of an exact boomerang pair-state relation.
+        """
+
+        relation = self._compute_exact_boomerang_relation_data(input_basis, output_basis).relation
+        return [
+            [reverse ^ 1 if weight != 0 else reverse for weight in row]
+            for row in relation
+        ]
+
+    def _exact_boomerang_relation_to_boolean_function(self, input_basis, output_basis, target_weight, reverse=1):
+        """
+        Convert a subtable of an exact boomerang pair-state relation into a Boolean function.
+        """
+
+        relation = self._compute_exact_boomerang_relation_data(input_basis, output_basis).relation
+        boolean_function = dict()
+        for input_state, row in enumerate(relation):
+            x = pair_state_to_bits(input_state, self.input_size())
+            for output_state, weight in enumerate(row):
+                key = x + pair_state_to_bits(output_state, self.output_size())
+                boolean_function[key] = reverse ^ int(weight == target_weight)
+        return boolean_function
+
+    def _star_exact_boomerang_relation_to_boolean_function(self, input_basis, output_basis, reverse=1, inverse=0):
+        """
+        Convert the support of an exact boomerang pair-state relation into a Boolean function.
+        """
+
+        relation = self._compute_exact_boomerang_relation_data(input_basis, output_basis).relation
+        boolean_function = dict()
+        for input_state, row in enumerate(relation):
+            x = pair_state_to_bits(input_state, self.input_size())
+            for output_state, weight in enumerate(row):
+                key = x + pair_state_to_bits(output_state, self.output_size())
+                boolean_function[key] = int(weight != 0) ^ reverse ^ inverse
+        return boolean_function
+
+    def _exact_boomerang_relation_v2_to_boolean_function(self, input_basis, output_basis, reverse=1):
+        """
+        Convert an exact boomerang pair-state relation into a Boolean function with one-hot v2 cost bits.
+        """
+
+        data = self._compute_exact_boomerang_relation_data(input_basis, output_basis)
+        relation = data.relation
+        v2_spectrum = data.v2_spectrum
+        boolean_function = dict()
+        for input_state, row in enumerate(relation):
+            x = pair_state_to_bits(input_state, self.input_size())
+            for output_state, weight in enumerate(row):
+                if weight == 0:
+                    continue
+                y = pair_state_to_bits(output_state, self.output_size())
+                p = tuple(int(v2_abs(weight) == valuation) for valuation in v2_spectrum)
+                boolean_function[x + y + p] = 1
+        if reverse == 1:
+            complexity = 2 * self.input_size() + 2 * self.output_size() + len(v2_spectrum)
+            for state in range(2**complexity):
+                key = tuple(map(int, list(bin(state)[2:].zfill(complexity))))
+                boolean_function[key] = boolean_function.get(key, 0) ^ 1
+        return boolean_function
+
+    def minimized_exact_boomerang_constraints(self, input_basis="quasidifferential", output_basis="quasidifferential", mode=6,
+                                              subtable="star", weight_model=None,
+                                              input_variables=None, output_variables=None, cost_variables=None):
+        """
+        Minimize exact boomerang pair-state support or v2-weighted constraints derived from the S-box lookup table.
+        """
+
+        data = self._compute_exact_boomerang_relation_data(input_basis, output_basis)
+        valid_values_for_subtable = ["star", "star_inverse", None] + list(data.weight_spectrum)
+        if subtable not in valid_values_for_subtable:
+            raise ValueError("Invalid value for subtable! subtable must be in {0}.".format(list(map(str, valid_values_for_subtable))))
+        if weight_model not in [None, "v2"]:
+            raise ValueError("Invalid weight_model! weight_model must be in [None, 'v2'].")
+        if weight_model == "v2" and subtable is not None:
+            raise ValueError("When weight_model='v2', subtable must be None.")
+        if weight_model is None and subtable is None:
+            raise ValueError("subtable=None requires weight_model='v2'.")
+
+        if mode in [1, 3, 5, 6, 7]:
+            reverse = 0
+        else:
+            reverse = 1
+
+        input_bits = 2 * self.input_size()
+        output_bits = 2 * self.output_size()
+        if input_variables is None:
+            input_variables = [f"a{i}" for i in range(input_bits)]
+        elif len(input_variables) != input_bits:
+            raise ValueError("The size of input variables should be {0}".format(input_bits))
+        if output_variables is None:
+            output_variables = [f"b{i}" for i in range(output_bits)]
+        elif len(output_variables) != output_bits:
+            raise ValueError("The size of output variables should be {0}".format(output_bits))
+
+        input_output_variables = input_variables + output_variables
+        self.exact_boomerang_objective = ""
+        if subtable == "star_inverse":
+            boolean_function = self._star_exact_boomerang_relation_to_boolean_function(input_basis=input_basis,
+                                                                                       output_basis=output_basis,
+                                                                                       reverse=reverse,
+                                                                                       inverse=1)
+        elif subtable == "star":
+            boolean_function = self._star_exact_boomerang_relation_to_boolean_function(input_basis=input_basis,
+                                                                                       output_basis=output_basis,
+                                                                                       reverse=reverse)
+        elif subtable in data.weight_spectrum:
+            boolean_function = self._exact_boomerang_relation_to_boolean_function(input_basis=input_basis,
+                                                                                  output_basis=output_basis,
+                                                                                  target_weight=subtable,
+                                                                                  reverse=reverse)
+        else:
+            if cost_variables is None:
+                cost_variables = [f"p{i}" for i in range(len(data.v2_spectrum))]
+            elif len(cost_variables) != len(data.v2_spectrum):
+                raise ValueError("The size of cost variables should be {0}".format(len(data.v2_spectrum)))
+            input_output_variables += cost_variables
+            boolean_function = self._exact_boomerang_relation_v2_to_boolean_function(input_basis=input_basis,
+                                                                                      output_basis=output_basis,
+                                                                                      reverse=reverse)
+            if len(data.v2_spectrum) > 0:
+                self.exact_boomerang_objective = [
+                    "{:0.04f} {}".format(data.v2_spectrum[index], cost_variables[index])
+                    for index in range(len(data.v2_spectrum))
+                ]
+                self.exact_boomerang_objective = "\nV2 cost: {}".format(" + ".join(self.exact_boomerang_objective))
+            else:
+                self.exact_boomerang_objective = "\nV2 cost: 0"
+
         self._write_truth_table(filename=self.truth_table_filename,
                                 boolean_function=boolean_function,
                                 input_output_variables=input_output_variables)
@@ -1636,9 +1896,9 @@ class SboxAnalyzer(SBox):
         os.remove(self.simplified_truth_table_filename)
         os.remove(self.truth_table_filename)
         print("Number of constraints: {0}".format(len(milp_constraints)))
-        variables_mapping = "Input pair-state: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
-        variables_mapping += "\nOutput pair-state: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
-        print("{}".format(variables_mapping + self.exact_pair_objective))
+        variables_mapping = "Input boomerang pair-state: {0}; msb: {1}".format("||".join(input_variables), input_variables[0])
+        variables_mapping += "\nOutput boomerang pair-state: {0}; msb: {1}".format("||".join(output_variables), output_variables[0])
+        print("{}".format(variables_mapping + self.exact_boomerang_objective))
         return sat_clauses, milp_constraints, cp_constraints
 
     @staticmethod

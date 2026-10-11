@@ -12,6 +12,9 @@ These tests verify the core functionality of S-box Analyzer including:
 """
 
 import os
+import subprocess
+
+import sboxanalyzer
 
 import pytest
 
@@ -355,6 +358,59 @@ class TestExactPairRelations:
         assert len(milp) > 0
         assert any("p0" in constraint for constraint in milp)
 
+    def test_parse_the_output_of_espresso_rejects_incomplete_output(self, tmp_path):
+        """Incomplete Espresso output must not be treated as an empty valid cover."""
+        output_file = tmp_path / "espresso.out"
+        output_file.write_text("# partial espresso output\n# EXPAND\n")
+
+        with pytest.raises(RuntimeError, match="Incomplete Espresso output"):
+            SboxAnalyzer._parse_the_output_of_espresso(str(output_file), ["a0", "b0"])
+
+    def test_simplify_by_espresso_raises_on_nonzero_exit(self, monkeypatch, tmp_path):
+        """Espresso crashes must raise instead of silently yielding zero constraints."""
+
+        def fake_run(*args, **kwargs):
+            kwargs["stdout"].write("# partial espresso output\n")
+            return subprocess.CompletedProcess(args=args[0], returncode=-6, stderr="Assertion failed")
+
+        monkeypatch.setattr(sboxanalyzer, "subprocess", sboxanalyzer.subprocess)
+        monkeypatch.setattr(sboxanalyzer.subprocess, "run", fake_run)
+
+        with pytest.raises(RuntimeError, match="Espresso failed"):
+            SboxAnalyzer.simplify_by_espresso(
+                str(tmp_path / "input.pla"),
+                str(tmp_path / "output.pla"),
+                mode=7,
+            )
+
+    def test_simplify_by_espresso_retries_safe_mode(self, monkeypatch, tmp_path):
+        """Mode-7 Espresso crashes should retry a safe non-epos mode automatically."""
+
+        calls = []
+
+        def fake_run(*args, **kwargs):
+            calls.append(tuple(args[0]))
+            if len(calls) == 1:
+                kwargs["stdout"].write("# partial espresso output\n")
+                return subprocess.CompletedProcess(args=args[0], returncode=-6, stderr="Assertion failed")
+            kwargs["stdout"].write(".p 1\n")
+            kwargs["stdout"].write("0 1\n")
+            kwargs["stdout"].write(".e\n")
+            return subprocess.CompletedProcess(args=args[0], returncode=0, stderr="")
+
+        monkeypatch.setattr(sboxanalyzer, "subprocess", sboxanalyzer.subprocess)
+        monkeypatch.setattr(sboxanalyzer.subprocess, "run", fake_run)
+
+        SboxAnalyzer.simplify_by_espresso(
+            str(tmp_path / "input.pla"),
+            str(tmp_path / "output.pla"),
+            mode=7,
+        )
+
+        assert len(calls) == 2
+        assert "-epos" in calls[0]
+        assert "-or" in calls[1]
+
     @pytest.mark.skipif(not RUN_SLOW_PAIR_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow pair-relation regression tests")
     def test_minimized_exact_pair_constraints_star_present(self):
         """Regression test for the quasidifferential->linear support encoding on PRESENT."""
@@ -381,6 +437,87 @@ class TestExactPairRelations:
         assert len(cnf) > 0
         assert len(cp) > 0
         assert len(milp) == 2997, f"Expected 2997 constraints for PRESENT exact v2, got {len(milp)}"
+        assert any("p0" in constraint for constraint in milp)
+
+
+class TestExactBoomerangRelations:
+    """Tests for exact boomerang pair-state relation encoding."""
+
+    RUN_SLOW_BOOMERANG_TESTS = os.environ.get("SBOXANALYZER_RUN_SLOW_TESTS") == "1"
+
+    @staticmethod
+    def _pack_pair_state(value_mask, diff, word_size):
+        return value_mask | (diff << word_size)
+
+    def test_supported_exact_boomerang_bases(self):
+        """Test that the supported exact boomerang bases are exposed."""
+        assert SboxAnalyzer.supported_exact_boomerang_bases() == ("quasidifferential", "linear", "subset-difference", "ultrametric-difference")
+
+    def test_exact_boomerang_transition_table_matches_bct_zero_masks(self):
+        """Test that the zero-mask quasidifferential->quasidifferential slice matches the ordinary BCT counts."""
+        sa = SboxAnalyzer(PRINTcipher)
+        relation = sa.exact_boomerang_transition_table(input_basis="quasidifferential", output_basis="quasidifferential")
+        bct = sa.boomerang_connectivity_table()
+        word_size = sa.input_size()
+
+        for input_diff in range(2**word_size):
+            input_state = self._pack_pair_state(0, input_diff, word_size)
+            for output_diff in range(2**word_size):
+                output_state = self._pack_pair_state(0, output_diff, word_size)
+                assert relation[input_state][output_state] == bct[input_diff][output_diff]
+
+    def test_minimized_exact_boomerang_constraints_star_printcipher(self):
+        """Test fast support encoding for the quasidifferential->quasidifferential exact boomerang relation of a 3-bit S-box."""
+        sa = SboxAnalyzer(PRINTcipher)
+        cnf, milp, cp = sa.minimized_exact_boomerang_constraints(input_basis="quasidifferential",
+                                                                 output_basis="quasidifferential",
+                                                                 subtable="star",
+                                                                 mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) > 0
+
+    def test_minimized_exact_boomerang_constraints_v2_printcipher(self):
+        """Test fast v2-weighted encoding for the quasidifferential->quasidifferential exact boomerang relation of a 3-bit S-box."""
+        sa = SboxAnalyzer(PRINTcipher)
+        cnf, milp, cp = sa.minimized_exact_boomerang_constraints(input_basis="quasidifferential",
+                                                                 output_basis="quasidifferential",
+                                                                 subtable=None,
+                                                                 weight_model="v2",
+                                                                 mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) > 0
+        assert any("p0" in constraint for constraint in milp)
+
+    @pytest.mark.skipif(not RUN_SLOW_BOOMERANG_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow boomerang-relation regression tests")
+    def test_minimized_exact_boomerang_constraints_star_present(self):
+        """Regression test for the quasidifferential->quasidifferential support encoding on PRESENT."""
+        sa = SboxAnalyzer(PRESENT)
+        cnf, milp, cp = sa.minimized_exact_boomerang_constraints(input_basis="quasidifferential",
+                                                                 output_basis="quasidifferential",
+                                                                 subtable="star",
+                                                                 mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) == 1570, f"Expected 1570 constraints for PRESENT exact boomerang support, got {len(milp)}"
+
+    @pytest.mark.skipif(not RUN_SLOW_BOOMERANG_TESTS, reason="set SBOXANALYZER_RUN_SLOW_TESTS=1 to run slow boomerang-relation regression tests")
+    def test_minimized_exact_boomerang_constraints_v2_present(self):
+        """Regression test for the quasidifferential->quasidifferential v2-weighted encoding on PRESENT."""
+        sa = SboxAnalyzer(PRESENT)
+        cnf, milp, cp = sa.minimized_exact_boomerang_constraints(input_basis="quasidifferential",
+                                                                 output_basis="quasidifferential",
+                                                                 subtable=None,
+                                                                 weight_model="v2",
+                                                                 mode=6)
+
+        assert len(cnf) > 0
+        assert len(cp) > 0
+        assert len(milp) > 0
         assert any("p0" in constraint for constraint in milp)
 
 
