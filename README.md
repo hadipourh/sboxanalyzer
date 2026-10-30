@@ -824,7 +824,7 @@ The corresponding table and spectrum methods are `exact_boomerang_transition_tab
 
 ## Citation
 
-If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our paper:
+If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our papers:
 
 ```
 @article{DBLP:journals/tosc/HadipourNE22,
@@ -839,6 +839,14 @@ If you use our tools in a project resulting in an academic publication, please a
   pages     = {271--302},
   year      = {2022},
   doi       = {10.46586/tosc.v2022.i3.271-302}
+}
+
+@misc{cryptoeprint:2026/2471,
+  author       = {Hosein Hadipour},
+  title        = {Connecting Cryptanalytic Distinguishers through Divisibility},
+  howpublished = {Cryptology {ePrint} Archive, Paper 2026/2471},
+  year         = {2026},
+  url          = {https://eprint.iacr.org/2026/2471}
 }
 ```
 
