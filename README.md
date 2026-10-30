@@ -1,13 +1,13 @@
 # S-box Analyzer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 **S-box Analyzer**
 
 S-box Analyzer is a tool for analyzing (vectorial) Boolean functions such as S-boxes against differential, linear, differential-linear, boomerang, and integral attacks.
 
-Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode a set of binary vectors, (vectorial) Boolean functions, the Differential Distribution Table (DDT), Linear Approximation Table (LAT), [Differential-Linear Connectivity Table (DLCT)](https://ia.cr/2024/255) and [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
+Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode a set of binary vectors, (vectorial) Boolean functions, the Differential Distribution Table (DDT), Linear Approximation Table (LAT), [Differential-Linear Connectivity Table (DLCT)](https://ia.cr/2024/255), Boomerang Connectivity Table (BCT), and [Monomial Prediction Table (MPT)](https://tosc.iacr.org/index.php/ToSC/article/view/9715) of S-boxes.
 
 ---
 
@@ -36,12 +36,16 @@ Particularly, it derives the minimized CP/MILP and SMT/SAT constraints to encode
     - [Encoding the MPT of PRESENT](#encoding-the-mpt-of-present)
     - [Encoding the MPT of Ascon](#encoding-the-mpt-of-ascon)
   - [Convex Hull Constraints for MILP](#convex-hull-constraints-for-milp)
-  - [Exact Pair-Relation Encoding](#exact-pair-relation-encoding)
-    - [Exact Boomerang Pair-Relation Encoding](#exact-boomerang-pair-relation-encoding)
   - [DLCT Encoding](#dlct-encoding)
     - [Encoding the \*-DLCT of KNOT](#encoding-the--dlct-of-knot)
     - [Encoding the \*-DLCT of Midori](#encoding-the--dlct-of-midori)
     - [Verification of Hadipour et al.'s Theorem](#verification-of-hadipour-et-als-theorem)
+  - [BCT Encoding](#bct-encoding)
+  - [Exact Pair-Relation Encoding](#exact-pair-relation-encoding)
+    - [Quasidifferential Trail Constraints](#quasidifferential-trail-constraints)
+    - [Mix-Basis Trail Constraints](#mix-basis-trail-constraints)
+    - [Valuation-Weighted Constraints](#valuation-weighted-constraints)
+    - [Exact Boomerang Pair-Relation Encoding](#exact-boomerang-pair-relation-encoding)
   - [Citation](#citation)
   - [Papers](#papers)
   - [Road Map](#road-map)
@@ -173,58 +177,6 @@ Interpretation of the outputs:
 - `Weight: 3.0000 p0 + 2.0000 p1 + 1.4150 p2`: The linear function $3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2$ encodes the weight of differential transition $a \rightarrow b$, where $\Pr (a \rightarrow b) = 2^{-(3 \cdot p_0 + 2 \cdot p_1 + 1.4150 \cdot p_2)}$. The additional variables $p_{0}, p_{1}$, and $p_{2}$ are binary decision variables to encode the probability of differential transitions.
 
 **Note:** The examples below show interactive prompts (e.g., `sage:`) for clarity, but all code works in regular Python after `pip install sboxanalyzer`. You can run these examples in Python, IPython, Jupyter notebooks, or SageMath.
-
-## Exact Pair-Relation Encoding
-
-S-box Analyzer can also derive and minimize exact local relations on packed pair states. This is useful when the local object is not a DDT, LAT, or DLCT entry, but an exact relation between two basis expansions built directly from the S-box lookup table.
-
-The public API mirrors the existing DDT and LAT interfaces: instantiate `SboxAnalyzer` from the lookup table, choose the input and output bases, then ask for either support constraints or a weighted encoding. The bases are named after the coordinates they use on a packed pair state: `quasidifferential` (a character on the value and one fixed difference), `linear` (characters on both the value and the difference, i.e. linear coordinates on pairs of state values), and the two ultrametric variants `ultrametric-difference` and `subset-difference` (a character on the value with ultrametric or subset-indicator coordinates on the difference).
-
-```python
-sage: from sboxanalyzer import SboxAnalyzer
-sage: from sage.crypto.sboxes import PRESENT
-sage: sa = SboxAnalyzer(PRESENT)
-sage: sa.supported_exact_pair_bases()
-('quasidifferential', 'linear', 'subset-difference', 'ultrametric-difference')
-
-sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
-....:     input_basis="quasidifferential",
-....:     output_basis="linear",
-....:     subtable="star",
-....:     mode=6,
-....: )
-
-sage: cnf, milp, cp = sa.minimized_exact_pair_constraints(
-....:     input_basis="quasidifferential",
-....:     output_basis="linear",
-....:     subtable=None,
-....:     weight_model="v2",
-....:     mode=6,
-....: )
-```
-
-In this interface, the packed input and output pair states are encoded by `2m` and `2n` binary variables, respectively, where `m` and `n` are the S-box input and output sizes. The option `subtable="star"` returns support-only constraints, while `weight_model="v2"` appends one-hot cost bits that encode the 2-adic valuation class of each non-zero local coefficient.
-
-### Exact Boomerang Pair-Relation Encoding
-
-The same interface is available for the exact boomerang relation of a permutation S-box. For every input pair state it counts, with the signs of the chosen bases, the output pair states whose boomerang quartet returns through the S-box. Restricted to zero value masks, the `quasidifferential`-to-`quasidifferential` table coincides with the BCT.
-
-```python
-sage: from sboxanalyzer import SboxAnalyzer
-sage: from sage.crypto.sboxes import PRESENT
-sage: sa = SboxAnalyzer(PRESENT)
-sage: sa.supported_exact_boomerang_bases()
-('quasidifferential', 'linear', 'subset-difference', 'ultrametric-difference')
-
-sage: cnf, milp, cp = sa.minimized_exact_boomerang_constraints(
-....:     input_basis="quasidifferential",
-....:     output_basis="quasidifferential",
-....:     subtable="star",
-....:     mode=6,
-....: )
-```
-
-The options `subtable` and `weight_model` have the same meaning as for `minimized_exact_pair_constraints`.
 
 ## Convert a Set of Binary Vectors to CNF/MILP Constraints
 
@@ -578,7 +530,7 @@ Output:	b0||b1||b2||b3; b0: msb
 Weight: 4.0000 p0 + 2.0000 p1
 ```
 
-Note that `sa.minimized_linear_constraints()` encode the squared LAT scaled by correlation.
+Note that `sa.minimized_linear_constraints()` encodes squared correlations, rather than signed LAT entries.
 
 ### Encoding the LAT of Ascon
 
@@ -716,6 +668,7 @@ Both sets of constraints accept exactly the same binary points. They differ in t
 ## DLCT Encoding
 
 Here, we show how to encode the DLCT of S-boxes.
+Use `differential_linear_connectivity_table()` to compute the DLCT and `minimized_differential_linear_constraints(subtable="star")` to encode its nonzero support. The UDLCT and LDLCT are computed by `upper_differential_linear_connectivity_table()` and `lower_differential_linear_connectivity_table()`, respectively.
 
 ### Encoding the *-DLCT of KNOT
 
@@ -760,6 +713,115 @@ The Hadipour et al.'s theorem is satisfied.
 True
 ```
 
+## BCT Encoding
+
+For a permutation S-box, `boomerang_connectivity_table()` computes the BCT, and `minimized_boomerang_constraints(subtable="star")` encodes its nonzero support:
+
+```python
+from sboxanalyzer import SboxAnalyzer
+from sage.crypto.sboxes import PRESENT
+
+sa = SboxAnalyzer(PRESENT)
+cnf, milp, cp = sa.minimized_boomerang_constraints(subtable="star")
+```
+
+This BCT encoding uses input and output differences. The [exact boomerang pair-relation interface](#exact-boomerang-pair-relation-encoding) additionally represents value masks in the chosen bases.
+
+## Exact Pair-Relation Encoding
+
+The following examples generate local S-box constraints for quasidifferential and mix-basis trails. These relations describe both a value mask and a difference (or a label in the selected difference basis), rather than a difference alone.
+
+Use `minimized_exact_pair_constraints()` and choose the input and output bases explicitly. The supported names are `quasidifferential` (a character on the value and one fixed difference), `linear` (characters on both the value and the difference), `subset-difference`, and `ultrametric-difference`. The last two combine a value character with subset or ultrametric coordinates on the difference. Call `sa.supported_exact_pair_bases()` to list them.
+
+### Quasidifferential Trail Constraints
+
+We use the 3-bit PRINTcipher S-box to keep the examples small. Selecting `quasidifferential` at both ends gives the local support constraints for a quasidifferential trail:
+
+```python
+from sboxanalyzer import SboxAnalyzer
+from sage.crypto.sboxes import PRINTcipher
+
+sa = SboxAnalyzer(PRINTcipher)
+m = sa.input_size()
+q0 = [f"q0_{i}" for i in range(2 * m)]
+q1 = [f"q1_{i}" for i in range(2 * m)]
+cnf_q, milp_q, cp_q = sa.minimized_exact_pair_constraints(
+    input_basis="quasidifferential",
+    output_basis="quasidifferential",
+    subtable="star",
+    input_variables=q0,
+    output_variables=q1,
+)
+```
+
+The return values are SAT clauses, MILP inequalities, and CP constraints. For an $m$-bit input and $n$-bit output, the method uses $2m$ input and $2n$ output variables. In quasidifferential coordinates, the difference bits come first, followed by the value-mask bits, each most-significant bit first. Thus `q0[:m]` describes the input difference and `q0[m:]` its value mask. Unlike a DDT-only encoding, this relation also keeps the value masks.
+
+### Mix-Basis Trail Constraints
+
+Continuing with the same S-box, we switch from quasidifferential input coordinates to linear output coordinates:
+
+```python
+l2 = [f"l2_{i}" for i in range(2 * m)]
+cnf_mix, milp_mix, cp_mix = sa.minimized_exact_pair_constraints(
+    input_basis="quasidifferential",
+    output_basis="linear",
+    subtable="star",
+    input_variables=q1,
+    output_variables=l2,
+)
+```
+
+Here the first half of `l2` is a mask on the output difference, and the second half is a mask on the output value. To switch to ultrametric coordinates on the difference instead, use `output_basis="ultrametric-difference"`.
+
+For two S-boxes connected directly, the shared variables `q1` connect the first example to this switch. Their combined support constraints are:
+
+```python
+cnf_trail = f"({cnf_q}) & ({cnf_mix})"
+milp_trail = milp_q + milp_mix
+```
+
+This models trails through two successive S-box applications, with quasidifferential coordinates at their connection and linear coordinates at the output. For a complete cipher, add its linear-layer, key-addition, and endpoint constraints. Shared labels must use the same basis, and all MILP label variables are binary.
+
+### Valuation-Weighted Constraints
+
+To encode local 2-adic valuations as well as support, use `subtable=None` and `weight_model="v2"`:
+
+```python
+cnf_v2, milp_v2, cp_v2 = sa.minimized_exact_pair_constraints(
+    input_basis="quasidifferential",
+    output_basis="linear",
+    subtable=None,
+    weight_model="v2",
+)
+print(sa.exact_pair_objective)
+```
+
+Set `output_basis="quasidifferential"` in this call for quasidifferential-to-quasidifferential valuation constraints. Each nonzero integer table entry $R$ receives cost $v_2(R)$, encoded by one-hot cost variables. For these quasidifferential-input examples, the normalized transition coefficient is $R/2^m$, so its valuation is $v_2(R)-m$. These costs are not negative logarithms of probabilities. When combining weighted components, give each component distinct `cost_variables` and account for the normalization in the trail objective.
+
+Use `exact_pair_transition_table()` to obtain the integer table, `get_exact_pair_transition_spectrum()` for its nonzero entries, and `get_exact_pair_transition_v2_spectrum()` for their valuation classes. These methods accept the same `input_basis` and `output_basis` arguments.
+
+### Exact Boomerang Pair-Relation Encoding
+
+The same interface is available for the exact boomerang relation of a permutation S-box. For every input pair state it counts, with the signs of the chosen bases, the output pair states whose boomerang quartet returns through the S-box. Restricted to zero value masks, the `quasidifferential`-to-`quasidifferential` table coincides with the BCT.
+
+```python
+sage: from sboxanalyzer import SboxAnalyzer
+sage: from sage.crypto.sboxes import PRESENT
+sage: sa = SboxAnalyzer(PRESENT)
+sage: sa.supported_exact_boomerang_bases()
+('quasidifferential', 'linear', 'subset-difference', 'ultrametric-difference')
+
+sage: cnf, milp, cp = sa.minimized_exact_boomerang_constraints(
+....:     input_basis="quasidifferential",
+....:     output_basis="quasidifferential",
+....:     subtable="star",
+....:     mode=6,
+....: )
+```
+
+The options `subtable` and `weight_model` have the same meaning as for `minimized_exact_pair_constraints`.
+The corresponding table and spectrum methods are `exact_boomerang_transition_table()`, `get_exact_boomerang_transition_spectrum()`, and `get_exact_boomerang_transition_v2_spectrum()`.
+
 ## Citation
 
 If you use our tools in a project resulting in an academic publication, please acknowledge it by citing our paper:
@@ -794,19 +856,23 @@ Sbox Analyzer has been used in the following papers:
 
 ## Road Map
 
-- [X] Encoding DDT
-- [X] Encoding LAT
-- [X] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715)
-- [X] Adding [DLCT, UDLCT, LDLCT and Hadipour et al&#39;s theorem](https://eprint.iacr.org/2024/255)
-- [X] Encoding BCT
-- [X] Encoding exact pair-state support and local 2-adic valuation constraints
-- [X] Encoding exact boomerang pair-state relations
-- [X] Deriving MILP constraints from the convex hull
-- [X] Deliver as a pip Python package
-- [ ] Integrating the tool into the [CryptoSMT](https://github.com/kste/cryptosmt)
+The function names below are public methods of `SboxAnalyzer`.
+
+- [X] Encoding DDT — `minimized_diff_constraints()`
+- [X] Encoding LAT support and squared correlations — `minimized_linear_constraints()`
+- [X] Encoding [MPT](https://tosc.iacr.org/index.php/ToSC/article/view/9715) — `minimized_integral_constraints()`
+- [X] Encoding DLCT support — `minimized_differential_linear_constraints(subtable="star")`
+- [X] Computing UDLCT and LDLCT — `upper_differential_linear_connectivity_table()` and `lower_differential_linear_connectivity_table()`
+- [X] Checking [Hadipour et al.'s theorem](https://eprint.iacr.org/2024/255) — `check_hadipour_theorem()`
+- [X] Encoding BCT support — `minimized_boomerang_constraints(subtable="star")`
+- [X] Encoding exact pair-state support and local 2-adic valuation constraints — `minimized_exact_pair_constraints()`
+- [X] Encoding exact boomerang pair-state support and local 2-adic valuation constraints — `minimized_exact_boomerang_constraints()`
+- [X] Deriving MILP constraints from the convex hull — `milp_method="convex_hull"` in the [supported methods](#convex-hull-constraints-for-milp)
+- [X] Delivering a pip-installable Python package
+- [ ] Full integration into [CryptoSMT](https://github.com/kste/cryptosmt) (DDT encoding with `cryptosmt_compatible=True` is already available)
 
 Any contributions or comments regarding the development of the tool are warmly welcome.
 
 ## License
 
-S-box Analyszer is released under the [MIT license](LICENSE).
+S-box Analyzer is released under the [MIT license](LICENSE).
